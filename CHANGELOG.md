@@ -1,3 +1,11 @@
+## [1.3.2](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.3.1...v1.3.2) (2026-06-15)
+
+
+### Bug Fixes
+
+* resolve date parsing timezone vulnerability, dialect array capability gating, MSSQL pagination consistency, cache eviction, and lint warnings ([5f7a580](https://github.com/Nam088/json-logic-to-sql-v2/commit/5f7a580ce49adfc7f1a18f8477922eb776742069))
+* resolve dialect operator validation, date parser vulnerability, sort parameter sanitization, and improve type casts & test coverage ([9e53e1e](https://github.com/Nam088/json-logic-to-sql-v2/commit/9e53e1e0e332a8cb6b622e6e90d6e3ad2b3b248c))
+
 ## [1.3.1](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.3.0...v1.3.1) (2026-06-15)
 
 
