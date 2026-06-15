@@ -1,3 +1,10 @@
+# 1.0.0 (2026-06-15)
+
+
+### Features
+
+* implement core json-logic-to-sql compilation engine with multi-dialect support and registry system ([39b9811](https://github.com/Nam088/json-logic-to-sql-v2/commit/39b981148d7c40dc3e1e45e6c069e4cec45cf1a9))
+
 # Changelog
 
 All notable changes to this project will be documented in this file.
