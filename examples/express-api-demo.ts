@@ -18,26 +18,43 @@ db.exec(`
     name TEXT NOT NULL,
     age INTEGER NOT NULL,
     status TEXT NOT NULL,
-    vip INTEGER NOT NULL
+    vip INTEGER NOT NULL,
+    metadata TEXT
   );
 `)
 
 const insert = db.prepare(`
-  INSERT INTO api_users (name, age, status, vip) VALUES (?, ?, ?, ?)
+  INSERT INTO api_users (name, age, status, vip, metadata) VALUES (?, ?, ?, ?, ?)
 `)
-insert.run("Alice", 25, "active", 1)  // VIP
-insert.run("Bob", 30, "pending", 1)   // VIP
-insert.run("Charlie", 35, "active", 0) // Non-VIP
-insert.run("David", 17, "active", 1)   // VIP (minor)
-insert.run("Eve", 40, "inactive", 0)   // Non-VIP
+insert.run("Alice", 25, "active", 1, JSON.stringify({ profile: { city: "Hanoi", rating: 5 } }))  // VIP
+insert.run("Bob", 30, "pending", 1, JSON.stringify({ profile: { city: "Saigon", rating: 4 } }))   // VIP
+insert.run("Charlie", 35, "active", 0, JSON.stringify({ profile: { city: "Hanoi", rating: 3 } })) // Non-VIP
+insert.run("David", 17, "active", 1, JSON.stringify({ profile: { city: "Da Nang", rating: 5 } }))   // VIP (minor)
+insert.run("Eve", 40, "inactive", 0, JSON.stringify({ profile: { city: "Saigon", rating: 2 } }))   // Non-VIP
 
 // 2. Định nghĩa FieldSchema ở Backend
 const schema: FieldSchema = {
-  id: { type: "number", operators: ["==", "!=", ">", "<"] },
-  name: { type: "string", operators: ["==", "contains"] },
+  id: {
+    type: "number",
+    operators: ["==", "===", "!=", "!==", ">", "<", ">=", "<=", "between", "in", "not_in"],
+    config: {
+      label: "ID người dùng",
+      placeholder: "Nhập ID...",
+      component: "number-input",
+    },
+  },
+  name: {
+    type: "string",
+    operators: ["==", "===", "!=", "!==", "contains", "not_contains", "startsWith", "endsWith", "like", "ilike", "is_null", "is_not_null"],
+    config: {
+      label: "Họ và tên",
+      placeholder: "Nhập tên tìm kiếm...",
+      component: "text-input",
+    },
+  },
   age: {
     type: "number",
-    operators: ["==", ">", "<", ">=", "<=", "between"],
+    operators: ["==", "===", "!=", "!==", ">", "<", ">=", "<=", "between", "is_null", "is_not_null"],
     constraints: { min: 0, max: 120 },
     config: {
       label: "Tuổi",
@@ -47,7 +64,7 @@ const schema: FieldSchema = {
   },
   status: {
     type: "string",
-    operators: ["==", "in", "not_in"],
+    operators: ["==", "===", "!=", "!==", "in", "not_in", "is_null", "is_not_null"],
     constraints: { allowedValues: ["active", "inactive", "pending"] },
     config: {
       label: "Trạng thái",
@@ -57,10 +74,32 @@ const schema: FieldSchema = {
   },
   vip: {
     type: "boolean",
-    operators: ["=="],
+    operators: ["==", "===", "!=", "!==", "is_null", "is_not_null"],
     config: {
       label: "Thành viên VIP",
       component: "switch",
+    },
+  },
+  "metadata.profile.city": {
+    type: "string",
+    columnName: "metadata",
+    jsonPath: ["profile", "city"],
+    operators: ["==", "===", "!=", "!==", "contains", "startsWith", "is_null", "is_not_null"],
+    config: {
+      label: "Thành phố (JSON)",
+      placeholder: "Nhập thành phố...",
+      component: "text-input",
+    },
+  },
+  "metadata.profile.rating": {
+    type: "number",
+    columnName: "metadata",
+    jsonPath: ["profile", "rating"],
+    operators: ["==", "===", "!=", "!==", ">", "<", "between", "is_null", "is_not_null"],
+    config: {
+      label: "Đánh giá sao (JSON)",
+      placeholder: "Nhập số sao (1-5)",
+      component: "number-input",
     },
   },
 }

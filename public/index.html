@@ -470,11 +470,13 @@
                 <th>Tuổi</th>
                 <th>Trạng thái</th>
                 <th>VIP</th>
+                <th>Thành phố (JSON)</th>
+                <th>Đánh giá (JSON)</th>
               </tr>
             </thead>
             <tbody id="results-body">
               <tr>
-                <td colspan="5" class="no-data">Nhấn "Chạy truy vấn" để xem kết quả.</td>
+                <td colspan="7" class="no-data">Nhấn "Chạy truy vấn" để xem kết quả.</td>
               </tr>
             </tbody>
           </table>
@@ -763,7 +765,7 @@
           document.getElementById("results-count").innerText = json.data.rows.length;
           
           if (json.data.rows.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="5" class="no-data">Không tìm thấy kết quả nào khớp với bộ lọc.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="no-data">Không tìm thấy kết quả nào khớp với bộ lọc.</td></tr>`;
             return;
           }
 
@@ -779,6 +781,17 @@
               ? `<span class="badge badge-active">VIP</span>`
               : `<span class="badge badge-inactive">Thường</span>`;
 
+            // Parse metadata JSON
+            let city = "-";
+            let rating = "-";
+            if (user.metadata) {
+              try {
+                const meta = JSON.parse(user.metadata);
+                city = meta.profile?.city ?? "-";
+                rating = meta.profile?.rating !== undefined ? `${"⭐".repeat(meta.profile.rating)}` : "-";
+              } catch (e) {}
+            }
+
             rowsHtml += `
               <tr>
                 <td>${user.id}</td>
@@ -786,6 +799,8 @@
                 <td>${user.age}</td>
                 <td>${statusBadge}</td>
                 <td>${vipBadge}</td>
+                <td>${city}</td>
+                <td style="color: #fbbf24; font-weight: 600;">${rating}</td>
               </tr>
             `;
           });
