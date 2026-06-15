@@ -1,188 +1,150 @@
 import { toPublicSchema, FieldSchema } from "../src/index.js"
 
-// 1. Cấu hình Schema ở Backend (chứa cả cấu hình Database nội bộ lẫn cấu hình UI cho Frontend)
+// 1. Cấu hình Schema ở Backend (chứa thông tin DB và UI cấu hình)
 const serverSchema: FieldSchema = {
-  // Trường age: Nhập số, hiển thị ô input dạng số (Number Input)
   age: {
     type: "number",
-    operators: [">", "<", "=="],
+    operators: [">", "<", "==", "between", "in"],
     constraints: { min: 0, max: 120 },
-    internal: { table: "users", column: "user_age" }, // [Bảo mật] Ẩn thông tin DB này khỏi FE
-    validate: (val) => (typeof val === "number" ? true : "Tuổi phải là số"), // [Bảo mật] Hàm JS chạy ở server
+    internal: { table: "users", column: "user_age" },
     config: {
       label: "Tuổi",
-      placeholder: "Nhập số tuổi (0-120)",
-      component: "number-input", // Gợi ý FE render ô input số
-      icon: "user-clock-icon",
+      placeholder: "Nhập số tuổi",
+      component: "number-input",
     },
   },
-
-  // Trường status: Lọc theo danh sách có sẵn, hiển thị Select Dropdown
   status: {
     type: "string",
-    operators: ["==", "in"],
+    operators: ["==", "in", "is_null", "is_not_null"],
     constraints: {
-      // Danh sách lựa chọn hiển thị trên FE kèm label đa ngôn ngữ hoặc thân thiện
       allowedValues: [
-        { value: "active", label: "Đang hoạt động", labelKey: "status.active" },
-        { value: "inactive", label: "Tạm dừng", labelKey: "status.inactive" },
-        { value: "pending", label: "Chờ phê duyệt", labelKey: "status.pending" },
+        { value: "active", label: "Đang hoạt động" },
+        { value: "inactive", label: "Tạm dừng" },
       ],
     },
-    internal: { table: "users", column: "status_code" }, // [Bảo mật] Ẩn
+    internal: { table: "users", column: "status_code" },
     config: {
-      label: "Trạng thái tài khoản",
+      label: "Trạng thái",
       placeholder: "Chọn trạng thái...",
-      component: "select", // Gợi ý FE render dropdown
-      multiple: true, // Cho phép chọn nhiều (đối với toán tử "in")
-    },
-  },
-
-  // Trường created_at: Lọc ngày tháng, hiển thị DatePicker
-  created_at: {
-    type: "date",
-    operators: ["between", ">", "<"],
-    internal: { table: "users", column: "created_date" }, // [Bảo mật] Ẩn
-    config: {
-      label: "Ngày tạo tài khoản",
-      component: "datepicker", // Gợi ý FE render bộ chọn ngày tháng
-      format: "YYYY-MM-DD",
-    },
-  },
-
-  // Trường vip: Lọc dạng boolean, hiển thị Switch/Toggle hoặc Checkbox
-  vip: {
-    type: "boolean",
-    operators: ["=="],
-    internal: { table: "users", column: "is_vip" }, // [Bảo mật] Ẩn
-    config: {
-      label: "Thành viên VIP",
-      component: "switch", // Gợi ý FE render nút gạt bật/tắt (Switch)
+      component: "select",
     },
   },
 }
 
-// 2. Chuyển đổi thành Public Schema gửi về cho Frontend
-// Hàm toPublicSchema sẽ loại bỏ toàn bộ các thuộc tính nhạy cảm như "internal", "columnName", và hàm "validate"
+// Chuyển đổi thành Public Schema gửi về Frontend
 const publicSchema = toPublicSchema(serverSchema)
 
-console.log("=== PUBLIC SCHEMA GỬI VỀ FRONTEND ===")
-console.log(JSON.stringify(publicSchema, null, 2))
-
-/*
-Đầu ra của publicSchema sẽ trông như thế này (An toàn tuyệt đối cho Client):
-{
-  "age": {
-    "type": "number",
-    "operators": [">", "<", "=="],
-    "constraints": { "min": 0, "max": 120 },
-    "config": {
-      "label": "Tuổi",
-      "placeholder": "Nhập số tuổi (0-120)",
-      "component": "number-input",
-      "icon": "user-clock-icon"
-    }
-  },
-  "status": {
-    "type": "string",
-    "operators": ["==", "in"],
-    "constraints": {
-      "allowedValues": [
-        { "value": "active", "label": "Đang hoạt động", "labelKey": "status.active" },
-        { "value": "inactive", "label": "Tạm dừng", "labelKey": "status.inactive" },
-        { "value": "pending", "label": "Chờ phê duyệt", "labelKey": "status.pending" }
-      ]
-    },
-    "config": {
-      "label": "Trạng thái tài khoản",
-      "placeholder": "Chọn trạng thái...",
-      "component": "select",
-      "multiple": true
-    }
-  },
-  "created_at": {
-    "type": "date",
-    "operators": ["between", ">", "<"],
-    "config": {
-      "label": "Ngày tạo tài khoản",
-      "component": "datepicker",
-      "format": "YYYY-MM-DD"
-    }
-  },
-  "vip": {
-    "type": "boolean",
-    "operators": ["=="],
-    "config": {
-      "label": "Thành viên VIP",
-      "component": "switch"
-    }
-  }
+// 2. Định nghĩa nhãn hiển thị thân thiện cho các toán tử ở FE
+const OPERATOR_LABELS: Record<string, string> = {
+  "==": "Bằng",
+  "!=": "Khác",
+  ">": "Lớn hơn",
+  "<": "Nhỏ hơn",
+  ">=": "Lớn hơn hoặc bằng",
+  "<=": "Nhỏ hơn hoặc bằng",
+  between: "Nằm trong khoảng (Min - Max)",
+  in: "Một trong số các giá trị (Multi-Select)",
+  not_in: "Không nằm trong số các giá trị",
+  contains: "Chứa từ khoá",
+  startsWith: "Bắt đầu với",
+  endsWith: "Kết thúc với",
+  is_null: "Không có giá trị (Rỗng)",
+  is_not_null: "Có giá trị (Khác rỗng)",
 }
-*/
 
-// 3. Ví dụ mã xử lý ở Frontend (React / Vue / Angular Component Renderer)
-// Đoạn code dưới đây mô phỏng cách FE đọc Public Schema để tự động sinh giao diện
+// 3. Mô phỏng hàm render động của Frontend dựa trên Trường và Toán tử đang được chọn
 interface FEFieldDef {
   type: string
   operators: string[]
   constraints?: {
-    allowedValues?: Array<{ value: any; label: string; labelKey?: string } | any>
+    allowedValues?: Array<{ value: any; label: string } | any>
     min?: number | string
     max?: number | string
   }
   config?: {
     label?: string
     placeholder?: string
-    component?: "select" | "number-input" | "datepicker" | "switch" | "text-input"
-    multiple?: boolean
+    component?: "select" | "number-input" | "text-input"
     [key: string]: any
   }
 }
 
-function renderUIForField(fieldKey: string, fieldDef: FEFieldDef) {
-  const label = fieldDef.config?.label ?? fieldKey
-  const componentType = fieldDef.config?.component ?? "text-input" // Mặc định là text input
+/**
+ * Hàm mô phỏng render ô nhập liệu tuỳ thuộc vào toán tử được chọn.
+ */
+function renderValueInputForOperator(fieldKey: string, fieldDef: FEFieldDef, selectedOp: string) {
+  const componentType = fieldDef.config?.component ?? "text-input"
   const placeholder = fieldDef.config?.placeholder ?? ""
 
-  console.log(`\n[FE Render] Rendering field: "${fieldKey}"`)
-  console.log(` -> Nhãn hiển thị (Label): ${label}`)
+  console.log(`\n--- [FE Render] ${fieldDef.config?.label ?? fieldKey} với toán tử: "${OPERATOR_LABELS[selectedOp] ?? selectedOp}" ---`)
 
-  switch (componentType) {
-    case "select":
-      console.log(` -> Render Component: <Select dropdown placeholder="${placeholder}" multiple=${!!fieldDef.config?.multiple}>`)
-      // Hiển thị danh sách tuỳ chọn có sẵn trong constraints.allowedValues
-      const options = fieldDef.constraints?.allowedValues ?? []
-      options.forEach((opt: any) => {
-        const val = typeof opt === "object" ? opt.value : opt
-        const lbl = typeof opt === "object" ? opt.label : opt
-        console.log(`    * [Option] Value: "${val}" | Label: "${lbl}"`)
-      })
-      console.log(` </Select>`)
+  // Bước A: Hiển thị bộ chọn toán tử (Dropdown)
+  console.log(`[Toán tử Dropdown] Cho phép người dùng chọn từ: ${JSON.stringify(fieldDef.operators.map(op => OPERATOR_LABELS[op] ?? op))}`)
+  console.log(`[Toán tử Đang chọn] => "${OPERATOR_LABELS[selectedOp] ?? selectedOp}"`)
+
+  // Bước B: Render ô nhập giá trị động tương ứng với toán tử đang chọn
+  switch (selectedOp) {
+    case "is_null":
+    case "is_not_null":
+      // Đối với toán tử kiểm tra rỗng, không cần render ô nhập giá trị!
+      console.log(`[Giá trị Input] => (Không cần ô nhập liệu - toán tử kiểm tra Null/NotNull)`)
       break
 
-    case "number-input":
-      const min = fieldDef.constraints?.min ?? "Không giới hạn"
-      const max = fieldDef.constraints?.max ?? "Không giới hạn"
-      console.log(` -> Render Component: <NumberInput min={${min}} max={${max}} placeholder="${placeholder}" />`)
+    case "between":
+      // Toán tử between yêu cầu 2 ô nhập liệu (Min và Max)
+      if (componentType === "number-input") {
+        console.log(`[Giá trị Input] => Render 2 ô số: <NumberInput label="Từ" /> và <NumberInput label="Đến" />`)
+      } else {
+        console.log(`[Giá trị Input] => Render 2 ô chữ: <TextInput label="Từ" /> và <TextInput label="Đến" />`)
+      }
       break
 
-    case "datepicker":
-      const dateFormat = fieldDef.config?.format ?? "YYYY-MM-DD"
-      console.log(` -> Render Component: <DatePicker format="${dateFormat}" />`)
-      break
-
-    case "switch":
-      console.log(` -> Render Component: <SwitchToggle label="${label}" />`)
+    case "in":
+    case "not_in":
+      // Toán tử in/not_in yêu cầu chọn nhiều giá trị
+      if (fieldDef.constraints?.allowedValues) {
+        console.log(`[Giá trị Input] => Render Multi-select Dropdown: <Select multiple placeholder="${placeholder}">`)
+        fieldDef.constraints.allowedValues.forEach((opt: any) => {
+          console.log(`    * [Option] Value: "${opt.value}" | Label: "${opt.label}"`)
+        })
+        console.log(` </Select>`)
+      } else {
+        console.log(`[Giá trị Input] => Render ô nhập thẻ: <TagInput placeholder="Nhập các giá trị cách nhau bằng dấu phẩy..." />`)
+      }
       break
 
     default:
-      console.log(` -> Render Component: <TextInput placeholder="${placeholder}" />`)
+      // Mặc định (==, !=, >, <) render 1 ô nhập đơn lẻ
+      if (componentType === "select" && fieldDef.constraints?.allowedValues) {
+        console.log(`[Giá trị Input] => Render Single-select Dropdown: <Select placeholder="${placeholder}">`)
+        fieldDef.constraints.allowedValues.forEach((opt: any) => {
+          console.log(`    * [Option] Value: "${opt.value}" | Label: "${opt.label}"`)
+        })
+        console.log(` </Select>`)
+      } else if (componentType === "number-input") {
+        console.log(`[Giá trị Input] => Render ô nhập số đơn lẻ: <NumberInput placeholder="${placeholder}" />`)
+      } else {
+        console.log(`[Giá trị Input] => Render ô nhập chữ đơn lẻ: <TextInput placeholder="${placeholder}" />`)
+      }
       break
   }
 }
 
-// Chạy thử hàm render ở FE với Public Schema
-console.log("\n=== FRONTEND DUYỆT SCHEMA VÀ RENDER GIAO DIỆN ===")
-for (const [fieldKey, fieldDef] of Object.entries(publicSchema)) {
-  renderUIForField(fieldKey, fieldDef as FEFieldDef)
-}
+// 4. Chạy mô phỏng tương tác trên Frontend
+console.log("=== BẮT ĐẦU MÔ PHỎNG FRONTEND TƯƠNG TÁC ĐỘNG ===")
+
+// Trường hợp A: Người dùng chọn trường "age" (Tuổi)
+const ageField = publicSchema.age as FEFieldDef
+// Người dùng chọn toán tử ">"
+renderValueInputForOperator("age", ageField, ">")
+// Người dùng đổi sang chọn toán tử "between"
+renderValueInputForOperator("age", ageField, "between")
+// Người dùng đổi sang chọn toán tử "in"
+renderValueInputForOperator("age", ageField, "in")
+
+// Trường hợp B: Người dùng chọn trường "status" (Trạng thái)
+const statusField = publicSchema.status as FEFieldDef
+// Người dùng chọn toán tử "=="
+renderValueInputForOperator("status", statusField, "==")
+// Người dùng đổi sang chọn toán tử "is_null"
+renderValueInputForOperator("status", statusField, "is_null")
