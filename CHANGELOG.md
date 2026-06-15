@@ -1,3 +1,10 @@
+## [1.3.1](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.3.0...v1.3.1) (2026-06-15)
+
+
+### Bug Fixes
+
+* remove instanceof Date fallback in postgres/sqlite transformParam and tighten return types ([782a931](https://github.com/Nam088/json-logic-to-sql-v2/commit/782a9310324247fa06de68e079a7025a465dab2e))
+
 # [1.3.0](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.2.0...v1.3.0) (2026-06-15)
 
 
