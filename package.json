@@ -2,6 +2,10 @@
   "name": "@nam088/json-logic-sql",
   "version": "1.0.0",
   "description": "Zero-trust JSON Logic to parameterized SQL converter",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Nam088/json-logic-to-sql-v2.git"
+  },
   "type": "module",
   "main": "./dist/index.cjs",
   "module": "./dist/index.mjs",
