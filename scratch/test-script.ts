@@ -1,533 +1,44 @@
-<!DOCTYPE html>
-<html lang="vi">
-<head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>JSON Logic to SQL Query Builder</title>
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
-  <style>
-    :root {
-      --bg-color: #0d0f1d;
-      --card-bg: rgba(255, 255, 255, 0.03);
-      --card-border: rgba(255, 255, 255, 0.08);
-      --primary: #6366f1;
-      --primary-hover: #4f46e5;
-      --accent: #8b5cf6;
-      --success: #10b981;
-      --danger: #ef4444;
-      --text: #f3f4f6;
-      --text-muted: #9ca3af;
-      --font: 'Inter', sans-serif;
-    }
 
-    * {
-      box-sizing: border-box;
-      margin: 0;
-      padding: 0;
-    }
-
-    body {
-      background-color: var(--bg-color);
-      background-image: 
-        radial-gradient(circle at 10% 20%, rgba(99, 102, 241, 0.15) 0%, transparent 40%),
-        radial-gradient(circle at 90% 80%, rgba(139, 92, 246, 0.15) 0%, transparent 40%);
-      color: var(--text);
-      font-family: var(--font);
-      min-height: 100vh;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      padding: 2rem 1rem;
-    }
-
-    header {
-      margin-bottom: 2rem;
-      text-align: center;
-    }
-
-    header h1 {
-      font-size: 2.2rem;
-      font-weight: 700;
-      background: linear-gradient(to right, #a5b4fc, #c084fc);
-      -webkit-background-clip: text;
-      background-clip: text;
-      -webkit-text-fill-color: transparent;
-      margin-bottom: 0.5rem;
-    }
-
-    header p {
-      color: var(--text-muted);
-      font-size: 1rem;
-    }
-
-    main {
-      width: 100%;
-      max-width: 900px;
-      display: flex;
-      flex-direction: column;
-      gap: 2rem;
-    }
-
-    .glass-card {
-      background: var(--card-bg);
-      backdrop-filter: blur(12px);
-      -webkit-backdrop-filter: blur(12px);
-      border: 1px solid var(--card-border);
-      border-radius: 16px;
-      padding: 2rem;
-      box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
-      transition: border-color 0.3s ease;
-    }
-
-    .glass-card:hover {
-      border-color: rgba(255, 255, 255, 0.12);
-    }
-
-    .card-title {
-      font-size: 1.25rem;
-      font-weight: 600;
-      margin-bottom: 1.5rem;
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      color: #e5e7eb;
-    }
-
-    .rule-row {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 1rem;
-      align-items: center;
-      background: rgba(255, 255, 255, 0.01);
-      border: 1px solid rgba(255, 255, 255, 0.03);
-      padding: 1rem;
-      border-radius: 12px;
-      margin-bottom: 1rem;
-      animation: fadeIn 0.3s ease;
-    }
-
-    @keyframes fadeIn {
-      from { opacity: 0; transform: translateY(10px); }
-      to { opacity: 1; transform: translateY(0); }
-    }
-
-    .form-group {
-      display: flex;
-      flex-direction: column;
-      gap: 0.35rem;
-      flex: 1;
-      min-width: 150px;
-    }
-
-    .form-group.small {
-      flex: 0 0 100px;
-      min-width: 100px;
-    }
-
-    label {
-      font-size: 0.75rem;
-      text-transform: uppercase;
-      font-weight: 600;
-      color: var(--text-muted);
-      letter-spacing: 0.05em;
-    }
-
-    select, input {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 0.6rem 0.8rem;
-      color: var(--text);
-      font-family: var(--font);
-      font-size: 0.9rem;
-      outline: none;
-      transition: all 0.2s ease;
-    }
-
-    select:focus, input:focus {
-      border-color: var(--primary);
-      background: rgba(255, 255, 255, 0.08);
-      box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
-    }
-
-    select option {
-      background: #111322;
-      color: var(--text);
-    }
-
-    .btn {
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      padding: 0.6rem 1.2rem;
-      font-size: 0.9rem;
-      font-weight: 500;
-      border-radius: 8px;
-      border: none;
-      cursor: pointer;
-      font-family: var(--font);
-      transition: all 0.2s ease;
-      gap: 0.5rem;
-    }
-
-    .btn-primary {
-      background: var(--primary);
-      color: white;
-    }
-
-    .btn-primary:hover {
-      background: var(--primary-hover);
-      transform: translateY(-1px);
-    }
-
-    .btn-secondary {
-      background: rgba(255, 255, 255, 0.05);
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      color: var(--text);
-    }
-
-    .btn-secondary:hover {
-      background: rgba(255, 255, 255, 0.08);
-    }
-
-    .btn-danger {
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.2);
-      color: #f87171;
-    }
-
-    .btn-danger:hover {
-      background: rgba(239, 68, 68, 0.2);
-    }
-
-    .btn-icon-only {
-      padding: 0.6rem;
-      border-radius: 8px;
-    }
-
-    .switch-container {
-      display: flex;
-      align-items: center;
-      gap: 0.5rem;
-      padding: 0.6rem 0;
-    }
-
-    .switch {
-      position: relative;
-      display: inline-block;
-      width: 44px;
-      height: 22px;
-    }
-
-    .switch input {
-      opacity: 0;
-      width: 0;
-      height: 0;
-    }
-
-    .slider {
-      position: absolute;
-      cursor: pointer;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: rgba(255, 255, 255, 0.1);
-      transition: .3s;
-      border-radius: 22px;
-      border: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    .slider:before {
-      position: absolute;
-      content: "";
-      height: 16px;
-      width: 16px;
-      left: 2px;
-      bottom: 2px;
-      background-color: white;
-      transition: .3s;
-      border-radius: 50%;
-    }
-
-    input:checked + .slider {
-      background-color: var(--primary);
-    }
-
-    input:checked + .slider:before {
-      transform: translateX(22px);
-    }
-
-    .action-bar {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-top: 1rem;
-    }
-
-    /* Output Results Styling */
-    .output-section {
-      display: grid;
-      grid-template-columns: 1fr;
-      gap: 1.5rem;
-    }
-
-    @media (min-width: 768px) {
-      .output-section {
-        grid-template-columns: 1fr 1fr;
-      }
-      .output-table-card {
-        grid-column: span 2;
-      }
-    }
-
-    .code-block {
-      background: rgba(0, 0, 0, 0.3);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 8px;
-      padding: 1rem;
-      font-family: monospace;
-      font-size: 0.85rem;
-      color: #a5b4fc;
-      overflow-x: auto;
-      max-height: 200px;
-    }
-
-    /* Custom Scrollbar */
-    .code-block::-webkit-scrollbar {
-      height: 6px;
-    }
-    .code-block::-webkit-scrollbar-thumb {
-      background: rgba(255, 255, 255, 0.1);
-      border-radius: 3px;
-    }
-
-    .alert-box {
-      background: rgba(239, 68, 68, 0.1);
-      border: 1px solid rgba(239, 68, 68, 0.2);
-      border-radius: 8px;
-      padding: 1rem;
-      color: #f87171;
-      font-size: 0.9rem;
-      margin-top: 1rem;
-      display: none;
-    }
-
-    /* Data Table Styling */
-    table {
-      width: 100%;
-      border-collapse: collapse;
-      text-align: left;
-      font-size: 0.9rem;
-    }
-
-    th, td {
-      padding: 0.8rem 1rem;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-    }
-
-    th {
-      color: var(--text-muted);
-      font-weight: 600;
-      text-transform: uppercase;
-      font-size: 0.75rem;
-      letter-spacing: 0.05em;
-      background: rgba(255, 255, 255, 0.02);
-    }
-
-    tr:hover td {
-      background: rgba(255, 255, 255, 0.01);
-    }
-
-    .badge {
-      display: inline-flex;
-      align-items: center;
-      padding: 0.2rem 0.5rem;
-      border-radius: 9999px;
-      font-size: 0.75rem;
-      font-weight: 500;
-    }
-
-    .badge-active {
-      background: rgba(16, 185, 129, 0.1);
-      color: #34d399;
-      border: 1px solid rgba(16, 185, 129, 0.2);
-    }
-
-    .badge-pending {
-      background: rgba(245, 158, 11, 0.1);
-      color: #fbbf24;
-      border: 1px solid rgba(245, 158, 11, 0.2);
-    }
-
-    .badge-inactive {
-      background: rgba(156, 163, 175, 0.1);
-      color: #d1d5db;
-      border: 1px solid rgba(156, 163, 175, 0.2);
-    }
-
-    .no-data {
-      text-align: center;
-      color: var(--text-muted);
-      padding: 2rem;
-    }
-
-    .multi-select-wrap {
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.25rem;
-      border: 1px solid rgba(255, 255, 255, 0.1);
-      border-radius: 8px;
-      padding: 0.4rem;
-      background: rgba(255, 255, 255, 0.05);
-      max-height: 80px;
-      overflow-y: auto;
-    }
-
-    .multi-select-option {
-      display: flex;
-      align-items: center;
-      gap: 0.25rem;
-      background: rgba(255, 255, 255, 0.08);
-      border-radius: 4px;
-      padding: 0.15rem 0.4rem;
-      font-size: 0.8rem;
-    }
-
-    .multi-select-option input {
-      margin: 0;
-      width: auto;
-    }
-
-    /* Nested Query Group Styling */
-    .query-group {
-      background: rgba(255, 255, 255, 0.015);
-      border: 1px solid rgba(255, 255, 255, 0.05);
-      border-radius: 12px;
-      padding: 1rem;
-      margin-bottom: 1rem;
-      display: flex;
-      flex-direction: column;
-      gap: 1rem;
-      position: relative;
-    }
-
-    .query-group .query-group {
-      margin-left: 1.5rem;
-      border-left: 2px solid var(--primary);
-      background: rgba(255, 255, 255, 0.005);
-    }
-
-    .group-header {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      gap: 1rem;
-      flex-wrap: wrap;
-      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
-      padding-bottom: 0.5rem;
-    }
-
-    .group-actions {
-      display: flex;
-      gap: 0.5rem;
-    }
-
-    .group-rules {
-      display: flex;
-      flex-direction: column;
-      gap: 0.75rem;
-    }
-
-    .btn-sm {
-      padding: 0.4rem 0.8rem;
-      font-size: 0.8rem;
-      border-radius: 6px;
-    }
-  </style>
-</head>
-<body>
-  <header>
-    <h1>JSON Logic to SQL Query Builder</h1>
-    <p>Xây dựng bộ lọc động, sinh câu lệnh SQL an toàn và thực thi trên Database</p>
-  </header>
-
-  <main>
-    <!-- Query Builder Panel -->
-    <section class="glass-card">
-      <div class="card-title">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-        Bộ lọc dữ liệu (Query Builder)
-      </div>
-
-      <div id="builder-root">
-        <!-- The root query-group will be inserted here dynamically -->
-      </div>
-
-      <div class="action-bar" style="justify-content: flex-end;">
-        <button id="run-query-btn" class="btn btn-primary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-          Chạy truy vấn
-        </button>
-      </div>
-
-      <div id="error-alert" class="alert-box"></div>
-    </section>
-
-    <!-- Query output / Database results -->
-    <section class="output-section">
-      <!-- SQL Code Card -->
-      <div class="glass-card">
-        <div class="card-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
-          SQL Fragment (SQLite)
-        </div>
-        <pre id="sql-output" class="code-block">Chưa có truy vấn...</pre>
-      </div>
-
-      <!-- Parameters Card -->
-      <div class="glass-card">
-        <div class="card-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="9" y1="9" x2="15" y2="15"></line><line x1="15" y1="9" x2="9" y2="15"></line></svg>
-          Parameters
-        </div>
-        <pre id="params-output" class="code-block">[]</pre>
-      </div>
-
-      <!-- Database Results Table Card -->
-      <div class="glass-card output-table-card">
-        <div class="card-title">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M12 6v6l4 2"></path></svg>
-          Kết quả từ Database (<span id="results-count">0</span> dòng)
-        </div>
-        <div style="overflow-x: auto;">
-          <table id="results-table">
-            <thead>
-              <tr>
-                <th>ID</th>
-                <th>Tên</th>
-                <th>Tuổi</th>
-                <th>Trạng thái</th>
-                <th>VIP</th>
-                <th>Thành phố (JSON)</th>
-                <th>Đánh giá (JSON)</th>
-              </tr>
-            </thead>
-            <tbody id="results-body">
-              <tr>
-                <td colspan="7" class="no-data">Nhấn "Chạy truy vấn" để xem kết quả.</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-    </section>
-  </main>
-
-  <script>
-    let schema = {};
+    const mockDocument = {};
+    
+    // Mock definitions
+    let schema: any = {};
+    const document: any = {
+      getElementById: (id: string) => ({
+        addEventListener: (event: string, callback: Function) => {},
+        appendChild: (child: any) => {},
+        querySelector: (selector: string) => ({ value: '', checked: false }),
+        innerText: '',
+        style: { display: '' }
+      }),
+      querySelector: (selector: string) => ({
+        value: '',
+        querySelector: (selector: string) => ({ value: '', checked: false }),
+        remove: () => {}
+      }),
+      querySelectorAll: (selector: string) => [],
+      createElement: (tag: string) => ({
+        className: '',
+        id: '',
+        innerHTML: '',
+        querySelector: (selector: string) => ({
+          value: '',
+          checked: false,
+          addEventListener: (event: string, callback: Function) => {}
+        }),
+        appendChild: (child: any) => {},
+        remove: () => {}
+      })
+    };
+    const window: any = {
+      addEventListener: (event: string, callback: Function) => {}
+    };
+    const fetch: any = (url: string, options?: any) => Promise.resolve({
+      json: () => Promise.resolve({ success: true, schema: {}, data: { sql: '', params: [], rows: [] } })
+    });
+  
+    
+    
 
     // Khởi tạo: Lấy schema từ API
     async function loadSchema() {
@@ -538,7 +49,7 @@
           schema = json.schema;
           
           // Khởi tạo root group và thêm một rule mặc định
-          const builderRoot = document.getElementById("builder-root");
+          const builderRoot = mockDocument.getElementById("builder-root");
           const rootGroup = createGroup(true);
           builderRoot.appendChild(rootGroup);
           
@@ -652,7 +163,7 @@
     }
 
     function onFieldChange(rowId) {
-      const row = document.getElementById(rowId);
+      const row = mockDocument.getElementById(rowId);
       if (!row) return;
       const fieldKey = row.querySelector(".field-select").value;
       const fieldDef = schema[fieldKey];
@@ -691,7 +202,7 @@
     };
 
     function onOperatorChange(rowId) {
-      const row = document.getElementById(rowId);
+      const row = mockDocument.getElementById(rowId);
       if (!row) return;
       const fieldKey = row.querySelector(".field-select").value;
       const fieldDef = schema[fieldKey];
@@ -859,7 +370,7 @@
 
     // Gửi yêu cầu chạy truy vấn lên Backend
     async function runQuery() {
-      const alert = document.getElementById("error-alert");
+      const alert = mockDocument.getElementById("error-alert");
       alert.style.display = "none";
 
       const logic = buildJsonLogic();
@@ -880,12 +391,12 @@
 
         if (json.success) {
           // Hiển thị SQL sinh ra và các tham số
-          document.getElementById("sql-output").innerText = json.data.sql;
-          document.getElementById("params-output").innerText = JSON.stringify(json.data.params, null, 2);
+          mockDocument.getElementById("sql-output").innerText = json.data.sql;
+          mockDocument.getElementById("params-output").innerText = JSON.stringify(json.data.params, null, 2);
 
           // Render bảng kết quả truy vấn
-          const tbody = document.getElementById("results-body");
-          document.getElementById("results-count").innerText = json.data.rows.length;
+          const tbody = mockDocument.getElementById("results-body");
+          mockDocument.getElementById("results-count").innerText = json.data.rows.length;
           
           if (json.data.rows.length === 0) {
             tbody.innerHTML = `<tr><td colspan="7" class="no-data">Không tìm thấy kết quả nào khớp với bộ lọc.</td></tr>`;
@@ -943,10 +454,9 @@
       }
     }
 
-    document.getElementById("run-query-btn").addEventListener("click", runQuery);
+    mockDocument.getElementById("run-query-btn").addEventListener("click", runQuery);
 
     // Bắt đầu tải schema khi trang web được tải
     window.addEventListener("load", loadSchema);
-  </script>
-</body>
-</html>
+  
+  
