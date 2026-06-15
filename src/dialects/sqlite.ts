@@ -1,15 +1,20 @@
 import type { Dialect, CompileContext } from "./interface.js"
 import type { AstNode } from "../types.js"
-import { escapeLikePosix, compileCommonNode, compileField } from "./utils.js"
+import { escapeLikePosix, compileCommonNode, compileField, compileStandardPagination } from "./utils.js"
+import { normalizeDateForDB } from "../utils/date.js"
 
 export const sqliteDialect: Dialect = {
   name: "sqlite",
   paramStyle: "anonymous",
   formatParam: () => "?",
   quoteIdentifier: (name) => `"${name.replace(/"/g, '""')}"`,
-  transformParam: (value) => {
+  jsonPathDialect: "sqlite",
+  transformParam: (value, fieldType) => {
     if (typeof value === "boolean") {
       return value ? 1 : 0
+    }
+    if (fieldType === "date" || (value as any) instanceof Date) {
+      return normalizeDateForDB(value, "iso")
     }
     return value
   },
@@ -77,13 +82,7 @@ export const sqliteDialect: Dialect = {
   },
 
   compilePagination(limit, offset, addParam) {
-    const pLimit = limit !== undefined ? addParam(limit, "limit") : undefined
-    const pOffset = offset !== undefined ? addParam(offset, "offset") : undefined
-    return {
-      sql: [pLimit ? `LIMIT ${pLimit}` : "", pOffset ? `OFFSET ${pOffset}` : ""].filter(Boolean).join(" "),
-      limitSql: pLimit ? `LIMIT ${pLimit}` : undefined,
-      offsetSql: pOffset ? `OFFSET ${pOffset}` : undefined,
-    }
+    return compileStandardPagination(limit, offset, addParam)
   },
 }
 

@@ -1,12 +1,20 @@
 import type { Dialect, CompileContext } from "./interface.js"
 import type { AstNode } from "../types.js"
-import { escapeLikePosix, compileCommonNode, compileField } from "./utils.js"
+import { escapeLikePosix, compileCommonNode, compileField, compileStandardPagination } from "./utils.js"
+import { normalizeDateForDB } from "../utils/date.js"
 
 export const postgresDialect: Dialect = {
   name: "postgres",
   paramStyle: "positional",
   formatParam: (index) => `$${index}`,
   quoteIdentifier: (name) => `"${name.replace(/"/g, '""')}"`,
+  jsonPathDialect: "postgres",
+  transformParam: (value, fieldType) => {
+    if (fieldType === "date" || (value as any) instanceof Date) {
+      return normalizeDateForDB(value, "iso")
+    }
+    return value
+  },
 
   compileNode(node: AstNode, ctx: CompileContext): string {
     const col = "columnName" in node ? compileField(node as any, ctx.dialect) : ""
@@ -73,13 +81,7 @@ export const postgresDialect: Dialect = {
   },
 
   compilePagination(limit, offset, addParam) {
-    const pLimit = limit !== undefined ? addParam(limit, "limit") : undefined
-    const pOffset = offset !== undefined ? addParam(offset, "offset") : undefined
-    return {
-      sql: [pLimit ? `LIMIT ${pLimit}` : "", pOffset ? `OFFSET ${pOffset}` : ""].filter(Boolean).join(" "),
-      limitSql: pLimit ? `LIMIT ${pLimit}` : undefined,
-      offsetSql: pOffset ? `OFFSET ${pOffset}` : undefined,
-    }
+    return compileStandardPagination(limit, offset, addParam)
   },
 }
 

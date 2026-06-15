@@ -127,7 +127,6 @@ export type Query = {
   orderFields?: OrderField[] | undefined
   limitSql?: string | undefined
   offsetSql?: string | undefined
-  joinSql?: string | undefined
   params: Primitive[]
   namedParams?: Record<string, Primitive> | undefined
   filterParams: Primitive[]

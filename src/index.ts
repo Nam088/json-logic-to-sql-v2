@@ -1,7 +1,7 @@
 import { validate } from "./validator/index.js"
 import { normalize } from "./normalizer/index.js"
 import { compile } from "./compiler/index.js"
-import { OperatorRegistry } from "./registry/index.js"
+import { OperatorRegistry, type OperatorDef } from "./registry/index.js"
 import { postgresDialect, postgresNamedDialect, postgresAnonymousDialect } from "./dialects/postgres.js"
 import { mysqlDialect, mysqlNamedDialect } from "./dialects/mysql.js"
 import { sqliteDialect, sqliteNamedDialect } from "./dialects/sqlite.js"
@@ -65,7 +65,7 @@ export type ConverterOptions = {
    */
   sort?: boolean
   /** Map of custom operator definitions to register alongside built-in operators. */
-  operators?: Record<string, import("./registry/index.js").OperatorDef>
+  operators?: Record<string, OperatorDef>
   /** SQL clause prefix prepended to the compiled filter expression.
    * @default "WHERE "
    */
@@ -162,12 +162,18 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
       let sort: SortRule[] | undefined = undefined
       let pag: PaginationRule | undefined = pagination
 
-      // Check if the single object signature is used
+      // Single-object signature: { rule?, logic?, sort?, pagination? }
+      // Detection: all keys must be known single-object keys (prevents misidentifying a JSON Logic
+      // node whose operator happens to be named "rule" or "logic" with extra unknown keys).
+      // Known limitation: { rule: [{ var: "field" }, value] } is ambiguous when "rule" is a custom
+      // operator — avoid naming custom operators "rule" or "logic" to prevent this.
+      const SINGLE_OBJ_KEYS = new Set(["rule", "logic", "sort", "pagination"])
       if (
         jsonLogicOrObj &&
         typeof jsonLogicOrObj === "object" &&
         !Array.isArray(jsonLogicOrObj) &&
         ("rule" in jsonLogicOrObj || "logic" in jsonLogicOrObj) &&
+        Object.keys(jsonLogicOrObj).every((k) => SINGLE_OBJ_KEYS.has(k)) &&
         sortOrOptions === undefined &&
         pagination === undefined
       ) {

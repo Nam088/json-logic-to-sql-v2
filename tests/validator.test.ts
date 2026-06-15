@@ -343,6 +343,15 @@ describe("Circular reference safety", () => {
     expect(errors[0]?.code).toBe("INVALID_STRUCTURE")
     expect(errors[0]?.message).toBe("Circular reference detected")
   })
+
+  it("allows shared objects (directed acyclic graphs) that are not circular", () => {
+    const shared = { "==": [{ var: "age" }, 25] }
+    const dag = {
+      and: [shared, shared]
+    }
+    const errors = validate(dag, schema, registry, opts)
+    expect(errors).toHaveLength(0)
+  })
 })
 
 describe("Code Review Validator Fixes", () => {

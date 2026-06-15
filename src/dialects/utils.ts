@@ -1,5 +1,5 @@
 import type { Dialect, CompileContext } from "./interface.js"
-import type { FieldType, AstNode } from "../types.js"
+import type { FieldType, AstNode, Primitive } from "../types.js"
 
 /**
  * Builds a base SQL column reference with optional table prefix and proper identifier quoting.
@@ -81,26 +81,36 @@ export function compileField(
   const baseCol = buildBaseColumn(n, dialect)
 
   if (n.jsonPath && n.jsonPath.length > 0) {
+    // Prefer explicit jsonPathDialect; fall back to name-prefix inference for backward compat.
+    // Custom dialects should set jsonPathDialect to avoid relying on name-prefix conventions.
+    const family: "postgres" | "mysql" | "sqlite" | "mssql" | null =
+      dialect.jsonPathDialect ??
+      (dialect.name.startsWith("postgres") ? "postgres"
+        : dialect.name.startsWith("mysql") ? "mysql"
+        : dialect.name.startsWith("sqlite") ? "sqlite"
+        : dialect.name.startsWith("mssql") ? "mssql"
+        : null)
+
     const colPathBase = (() => {
-      if (dialect.name.startsWith("postgres")) {
+      if (family === "postgres") {
         let temp = baseCol
-        const pathParts = n.jsonPath.map((part) => `'${part.replace(/'/g, "''")}'`)
+        const pathParts = n.jsonPath!.map((part) => `'${part.replace(/'/g, "''")}'`)
         for (let i = 0; i < pathParts.length - 1; i++) {
           temp += `->${pathParts[i]}`
         }
         temp += `->>${pathParts[pathParts.length - 1]}`
         return temp
       }
-      if (dialect.name.startsWith("mysql")) {
-        const pathStr = "$." + n.jsonPath.map((part) => `"${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(".")
+      if (family === "mysql") {
+        const pathStr = "$." + n.jsonPath!.map((part) => `"${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(".")
         return `${baseCol}->>'${pathStr.replace(/'/g, "''")}'`
       }
-      if (dialect.name.startsWith("sqlite")) {
-        const pathStr = "$." + n.jsonPath.map((part) => `"${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(".")
+      if (family === "sqlite") {
+        const pathStr = "$." + n.jsonPath!.map((part) => `"${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(".")
         return `${baseCol} ->> '${pathStr.replace(/'/g, "''")}'`
       }
-      if (dialect.name.startsWith("mssql")) {
-        const pathStr = "$." + n.jsonPath.map((part) => `"${part.replace(/"/g, '""')}"`).join(".")
+      if (family === "mssql") {
+        const pathStr = "$." + n.jsonPath!.map((part) => `"${part.replace(/"/g, '""')}"`).join(".")
         return `JSON_VALUE(${baseCol}, '${pathStr.replace(/'/g, "''")}')`
       }
       return baseCol
@@ -110,31 +120,36 @@ export function compileField(
 
     if (n.fieldType) {
       let castType = ""
-      if (dialect.name.startsWith("postgres")) {
-        switch (n.fieldType) {
-          case "number": castType = "numeric"; break
-          case "boolean": castType = "boolean"; break
-          case "date": castType = "timestamp"; break
-          case "uuid": castType = "uuid"; break
-        }
-      } else if (dialect.name.startsWith("mysql")) {
-        switch (n.fieldType) {
-          case "number": castType = "DECIMAL"; break
-          case "boolean": castType = "SIGNED"; break
-          case "date": castType = "DATETIME"; break
-        }
-      } else if (dialect.name.startsWith("sqlite")) {
-        switch (n.fieldType) {
-          case "number": castType = "NUMERIC"; break
-          case "boolean": castType = "INTEGER"; break
-        }
-      } else if (dialect.name.startsWith("mssql")) {
-        switch (n.fieldType) {
-          case "number": castType = "DECIMAL"; break
-          case "boolean": castType = "BIT"; break
-          case "date": castType = "DATETIME2"; break
-          case "uuid": castType = "UNIQUEIDENTIFIER"; break
-        }
+      switch (family) {
+        case "postgres":
+          switch (n.fieldType) {
+            case "number":  castType = "numeric";    break
+            case "boolean": castType = "boolean";    break
+            case "date":    castType = "timestamp";  break
+            case "uuid":    castType = "uuid";       break
+          }
+          break
+        case "mysql":
+          switch (n.fieldType) {
+            case "number":  castType = "DECIMAL";  break
+            case "boolean": castType = "SIGNED";   break
+            case "date":    castType = "DATETIME"; break
+          }
+          break
+        case "sqlite":
+          switch (n.fieldType) {
+            case "number":  castType = "NUMERIC";  break
+            case "boolean": castType = "INTEGER";  break
+          }
+          break
+        case "mssql":
+          switch (n.fieldType) {
+            case "number":  castType = "DECIMAL";          break
+            case "boolean": castType = "BIT";              break
+            case "date":    castType = "DATETIME2";        break
+            case "uuid":    castType = "UNIQUEIDENTIFIER"; break
+          }
+          break
       }
 
       if (castType) {
@@ -174,19 +189,19 @@ export function compileCommonNode(
         const targetCol = compileField(val as any, ctx.dialect)
         return `${col} ${op} ${targetCol}`
       } else {
-        const p = ctx.addParam(val as import("../types.js").Primitive, node.field)
+        const p = ctx.addParam(val as Primitive, node.field, node.fieldType)
         return `${col} ${op} ${p}`
       }
     }
 
     case "in": {
-      const placeholders = node.values.map((v, i) => ctx.addParam(v, `${node.field}_${i}`)).join(", ")
+      const placeholders = node.values.map((v, i) => ctx.addParam(v, `${node.field}_${i}`, node.fieldType)).join(", ")
       return node.negated ? `${col} NOT IN (${placeholders})` : `${col} IN (${placeholders})`
     }
 
     case "between": {
-      const p1 = ctx.addParam(node.min, `${node.field}_min`)
-      const p2 = ctx.addParam(node.max, `${node.field}_max`)
+      const p1 = ctx.addParam(node.min, `${node.field}_min`, node.fieldType)
+      const p2 = ctx.addParam(node.max, `${node.field}_max`, node.fieldType)
       return `${col} BETWEEN ${p1} AND ${p2}`
     }
 
@@ -203,6 +218,28 @@ export function compileCommonNode(
 
     default:
       return null
+  }
+}
+
+/**
+ * Standard pagination compiler for dialects that support standard LIMIT and OFFSET syntax
+ * (e.g. Postgres, MySQL, SQLite).
+ */
+export function compileStandardPagination(
+  limit: number | undefined,
+  offset: number | undefined,
+  addParam: (value: Primitive, nameHint?: string) => string
+): {
+  sql: string
+  limitSql?: string | undefined
+  offsetSql?: string | undefined
+} {
+  const pLimit = limit !== undefined ? addParam(limit, "limit") : undefined
+  const pOffset = offset !== undefined ? addParam(offset, "offset") : undefined
+  return {
+    sql: [pLimit ? `LIMIT ${pLimit}` : "", pOffset ? `OFFSET ${pOffset}` : ""].filter(Boolean).join(" "),
+    limitSql: pLimit ? `LIMIT ${pLimit}` : undefined,
+    offsetSql: pOffset ? `OFFSET ${pOffset}` : undefined,
   }
 }
 

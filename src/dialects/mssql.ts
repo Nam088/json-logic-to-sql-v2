@@ -1,12 +1,20 @@
 import type { Dialect, CompileContext } from "./interface.js"
 import type { AstNode } from "../types.js"
 import { escapeLikeMssql, compileCommonNode, compileField } from "./utils.js"
+import { normalizeDateForDB } from "../utils/date.js"
 
 export const mssqlDialect: Dialect = {
   name: "mssql",
   paramStyle: "anonymous",
   formatParam: () => "?",
   quoteIdentifier: (name) => `[${name.replace(/]/g, "]]")}]`,
+  jsonPathDialect: "mssql",
+  transformParam: (value, fieldType) => {
+    if (fieldType === "date") {
+      return normalizeDateForDB(value, "mssql")
+    }
+    return value
+  },
 
   compileNode(node: AstNode, ctx: CompileContext): string {
     const col = "columnName" in node ? compileField(node as any, ctx.dialect) : ""
@@ -88,8 +96,13 @@ export const mssqlDialect: Dialect = {
       offsetSql = `OFFSET ${off} ROWS`
     }
 
+    // MSSQL requires ORDER BY before OFFSET. If the caller hasn't supplied one,
+    // we inject a no-op ORDER BY into ALL output fields so they stay consistent.
     if (sql && !hasOrderBy) {
-      sql = `ORDER BY (SELECT NULL) ${sql}`
+      const orderByPrefix = `ORDER BY (SELECT NULL) `
+      sql = `${orderByPrefix}${sql}`
+      if (limitSql !== undefined) limitSql = `${orderByPrefix}${limitSql}`
+      if (offsetSql !== undefined) offsetSql = `${orderByPrefix}${offsetSql}`
     }
 
     return { sql, limitSql, offsetSql }

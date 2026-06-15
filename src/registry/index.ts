@@ -88,6 +88,14 @@ export class OperatorRegistry {
   private operators: Map<string, OperatorDef>
 
   constructor(custom: Record<string, OperatorDef> = {}) {
+    for (const name of Object.keys(custom)) {
+      if (name in builtIn) {
+        throw new Error(
+          `Cannot register custom operator "${name}": it conflicts with a built-in operator. ` +
+          `Rename your operator, or use registry.forceRegister() to intentionally override it.`
+        )
+      }
+    }
     this.operators = new Map(Object.entries({ ...builtIn, ...custom }))
   }
 
@@ -101,8 +109,25 @@ export class OperatorRegistry {
     return this.operators.has(name)
   }
 
-  /** Registers a new operator or overrides an existing one at runtime. */
+  /**
+   * Registers a new custom operator.
+   * Throws if `name` matches a built-in operator — use `forceRegister()` to override intentionally.
+   */
   register(name: string, def: OperatorDef): void {
+    if (name in builtIn) {
+      throw new Error(
+        `Cannot register custom operator "${name}": it conflicts with a built-in operator. ` +
+        `Use registry.forceRegister() to intentionally override it.`
+      )
+    }
+    this.operators.set(name, def)
+  }
+
+  /**
+   * Registers an operator, overriding any existing definition including built-ins.
+   * Use with caution — overriding built-in operators like `==` can break SQL safety guarantees.
+   */
+  forceRegister(name: string, def: OperatorDef): void {
     this.operators.set(name, def)
   }
 

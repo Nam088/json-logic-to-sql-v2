@@ -1,4 +1,4 @@
-import type { FieldSchema, ValidationError, Primitive } from "../types.js"
+import type { FieldSchema, ValidationError, Primitive, AllowedValue } from "../types.js"
 import type { OperatorRegistry } from "../registry/index.js"
 
 const FORMAT_PATTERNS: Record<string, RegExp> = {
@@ -245,7 +245,7 @@ function validateValue(
   value: unknown,
   type: string,
   c: {
-    allowedValues?: import("../types.js").AllowedValue[]
+    allowedValues?: AllowedValue[]
     min?: number | string
     max?: number | string
     minLength?: number

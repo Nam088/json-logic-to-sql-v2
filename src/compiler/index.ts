@@ -1,4 +1,4 @@
-import type { AstNode, Query, Primitive, SortRule, FieldSchema, PaginationRule } from "../types.js"
+import type { AstNode, Query, Primitive, SortRule, FieldSchema, PaginationRule, FieldType, OrderField } from "../types.js"
 import type { Dialect, CompileContext } from "../dialects/interface.js"
 import type { OperatorRegistry } from "../registry/index.js"
 
@@ -15,8 +15,8 @@ export function compile(
   const namedParams: Record<string, Primitive> = {}
   const paramIndex = { current: 1 }
 
-  const addParam = (value: Primitive, nameHint?: string): string => {
-    const transformed = dialect.transformParam ? dialect.transformParam(value) : value
+  const addParam = (value: Primitive, nameHint?: string, fieldType?: FieldType): string => {
+    const transformed = dialect.transformParam ? dialect.transformParam(value, fieldType) : value
     params.push(transformed)
     const placeholder = dialect.formatParam(paramIndex.current, nameHint)
     if (dialect.paramStyle === "named") {
@@ -41,7 +41,7 @@ export function compile(
   const filterSql = `${prefix}${dialect.compileNode(ast, ctx)}`
 
   let sortSql = ""
-  const orderFields: import("../types.js").OrderField[] = []
+  const orderFields: OrderField[] = []
 
   if (sort && sort.length > 0 && schema) {
     const orderCols = sort.map(({ field, direction }) => {

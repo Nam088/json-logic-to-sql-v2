@@ -1,4 +1,4 @@
-import type { AstNode, FieldSchema, JsonLogicNode, Primitive, FieldType } from "../types.js"
+import type { AstNode, FieldSchema, JsonLogicNode, Primitive, FieldType, FieldRefNode } from "../types.js"
 
 function resolveRef(
   fieldName: string,
@@ -55,7 +55,7 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
       const [varNode, rightVal] = (args as any) as [{ var: string }, unknown]
       const fieldName = varNode.var
 
-      let value: Primitive | import("../types.js").FieldRefNode
+      let value: Primitive | FieldRefNode
       if (
         typeof rightVal === "object" &&
         rightVal !== null &&
@@ -165,9 +165,20 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
     }
 
     default: {
-      const [varNode] = args as [{ var: string }]
-      const fieldName = varNode.var
-      const values = Array.isArray(args) ? args.slice(1) : []
+      if (!Array.isArray(args) || args.length < 1) {
+        throw new Error(`Operator "${op}" requires at least one argument`)
+      }
+      const varNode = args[0]
+      if (
+        typeof varNode !== "object" ||
+        varNode === null ||
+        !("var" in varNode) ||
+        typeof (varNode as { var: unknown }).var !== "string"
+      ) {
+        throw new Error(`First argument of "${op}" must be a { var: "field" } node`)
+      }
+      const fieldName = (varNode as { var: string }).var
+      const values = args.slice(1)
       return {
         type: "custom_op",
         operator: op,

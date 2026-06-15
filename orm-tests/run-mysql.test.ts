@@ -154,4 +154,35 @@ describe("Execute MySQL SQL directly on MySQL DB", () => {
     )) as any[]
     expect(countRows[0].total).toBe(3)
   })
+
+  it("compiles and executes queries with date filtering (ISO string and Date objects)", async () => {
+    const converter = createConverter(mysqlSchema, { dialect: "mysql" })
+
+    // Query with standard ISO string
+    const resultIso = converter.toSQL({
+      ">": [{ var: "created_at" }, "2026-05-15T00:00:00.000Z"],
+    })
+    expect(resultIso.ok).toBe(true)
+    if (!resultIso.ok) return
+
+    expect(resultIso.value.params).toEqual(["2026-05-15 00:00:00"])
+    const [rowsIso] = (await connection.query(`SELECT * FROM test_users ${resultIso.value.sql}`, resultIso.value.params)) as any[]
+    // Should match Alice (2026-06-01) and Eve (2026-07-01)
+    expect(rowsIso).toHaveLength(2)
+    const namesIso = rowsIso.map((r: any) => r.name).sort()
+    expect(namesIso).toEqual(["Alice", "Eve"])
+
+    // Query with Date object
+    const resultDate = converter.toSQL({
+      "<": [{ var: "created_at" }, new Date("2026-04-15T00:00:00.000Z") as any],
+    })
+    expect(resultDate.ok).toBe(true)
+    if (!resultDate.ok) return
+
+    expect(resultDate.value.params).toEqual(["2026-04-15 00:00:00"])
+    const [rowsDate] = (await connection.query(`SELECT * FROM test_users ${resultDate.value.sql}`, resultDate.value.params)) as any[]
+    // Should match David (2026-04-01)
+    expect(rowsDate).toHaveLength(1)
+    expect(rowsDate[0].name).toBe("David")
+  })
 })

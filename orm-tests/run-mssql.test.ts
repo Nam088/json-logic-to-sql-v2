@@ -274,6 +274,39 @@ describe("Execute MSSQL SQL directly on MSSQL DB (anonymous ? dialect)", () => {
     const resNS = await requestNS.query(`SELECT * FROM test_users ${queryNS}`)
     expect(resNS.recordset).toHaveLength(2)
   })
+
+  it("compiles and executes datetime query on MSSQL (ISO string and Date objects)", async () => {
+    const converter = createConverter(mssqlSchema, { dialect: "mssql" })
+
+    // Query with standard ISO string
+    const resultIso = converter.toSQL({
+      ">": [{ var: "created_at" }, "2026-05-15T00:00:00.000Z"],
+    })
+    expect(resultIso.ok).toBe(true)
+    if (!resultIso.ok) return
+
+    expect(resultIso.value.params).toEqual(["2026-05-15T00:00:00.000"])
+    const { query: queryIso, request: requestIso } = buildPositionalRequest(pool, resultIso.value.sql, resultIso.value.params)
+    const resIso = await requestIso.query(`SELECT * FROM test_users ${queryIso}`)
+    // Should match Alice (2026-06-01) and Eve (2026-07-01)
+    expect(resIso.recordset).toHaveLength(2)
+    const namesIso = resIso.recordset.map((r: any) => r.name).sort()
+    expect(namesIso).toEqual(["Alice", "Eve"])
+
+    // Query with Date object
+    const resultDate = converter.toSQL({
+      "<": [{ var: "created_at" }, new Date("2026-04-15T00:00:00.000Z") as any],
+    })
+    expect(resultDate.ok).toBe(true)
+    if (!resultDate.ok) return
+
+    expect(resultDate.value.params).toEqual(["2026-04-15T00:00:00.000"])
+    const { query: queryDate, request: requestDate } = buildPositionalRequest(pool, resultDate.value.sql, resultDate.value.params)
+    const resDate = await requestDate.query(`SELECT * FROM test_users ${queryDate}`)
+    // Should match David (2026-04-01)
+    expect(resDate.recordset).toHaveLength(1)
+    expect(resDate.recordset[0].name).toBe("David")
+  })
 })
 
 // ─── Test Suite 2: Named (@param) dialect ────────────────────────────────────

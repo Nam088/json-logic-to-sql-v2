@@ -366,7 +366,6 @@ describe("internal mapping — table-qualified columns in WHERE and ORDER BY", (
     expect(result.ok).toBe(true)
     if (!result.ok) return
     expect(result.value.sql).toBe(`WHERE "orders"."total" > $1`)
-    expect(result.value.joinSql).toBeUndefined()
   })
 
   it("plain field (no internal) keeps field key as column", () => {
