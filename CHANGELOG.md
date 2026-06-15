@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.0.0...v1.0.1) (2026-06-15)
+
+
+### Bug Fixes
+
+* add repository configuration to package.json for provenance validation ([de8b85a](https://github.com/Nam088/json-logic-to-sql-v2/commit/de8b85a59b5bf678b9e0a92f285387c67f8c736a))
+
 # 1.0.0 (2026-06-15)
 
 
