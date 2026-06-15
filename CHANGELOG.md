@@ -1,3 +1,10 @@
+# [1.3.0](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.2.0...v1.3.0) (2026-06-15)
+
+
+### Features
+
+* implement datetime parameter normalization and clean up inline type imports, resolve code review issues ([fb19550](https://github.com/Nam088/json-logic-to-sql-v2/commit/fb195509668c78d74275b6b2b344066aae2cdd94))
+
 # [1.2.0](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.1.0...v1.2.0) (2026-06-15)
 
 

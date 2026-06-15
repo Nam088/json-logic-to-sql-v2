@@ -1,6 +1,6 @@
 {
   "name": "@nam088/json-logic-sql",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Zero-trust JSON Logic to parameterized SQL converter",
   "repository": {
     "type": "git",
