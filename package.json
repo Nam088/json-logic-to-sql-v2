@@ -16,6 +16,9 @@
   "files": [
     "dist"
   ],
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "vite build",
     "test": "vitest run",
@@ -37,7 +40,6 @@
     "security"
   ],
   "license": "MIT",
-  "packageManager": "pnpm@11.5.2",
   "engines": {
     "node": ">=18"
   },

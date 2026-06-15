@@ -66,19 +66,14 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.5.2
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: ${{ matrix.node-version }}
-          cache: 'pnpm'
+          cache: 'npm'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Wait for PostgreSQL and seed database
         run: |
@@ -94,16 +89,16 @@ jobs:
         run: npx prisma generate --schema=orm-tests/schema.prisma
 
       - name: Run Lint
-        run: pnpm lint
+        run: npm run lint
 
       - name: Run Typecheck
-        run: pnpm typecheck
+        run: npm run typecheck
 
       - name: Run Tests
-        run: pnpm test
+        run: npm run test
 
       - name: Run Build
-        run: pnpm build
+        run: npm run build
 
   release:
     name: Release & Publish
@@ -122,27 +117,21 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Install pnpm
-        uses: pnpm/action-setup@v4
-        with:
-          version: 11.5.2
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
-          cache: 'pnpm'
+          node-version: 22
+          cache: 'npm'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
 
       - name: Build library
-        run: pnpm build
+        run: npm run build
 
       - name: Run Release
         run: npx semantic-release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
 
