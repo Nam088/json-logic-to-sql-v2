@@ -48,11 +48,7 @@ export function compile(
       const def = schema[field]
       const colName = def?.internal?.column ?? def?.columnName ?? field
       const tablePrefix = def?.internal?.alias ?? def?.internal?.table
-      const upperDir = direction.toUpperCase()
-      if (upperDir !== "ASC" && upperDir !== "DESC") {
-        throw new Error(`Invalid sort direction: "${direction}". Must be "asc" or "desc".`)
-      }
-      const dir = upperDir as "ASC" | "DESC"
+      const dir = direction.toUpperCase() as "ASC" | "DESC"
       orderFields.push({ column: colName, direction: dir })
       const quotedCol = tablePrefix
         ? `${dialect.quoteIdentifier(tablePrefix)}.${dialect.quoteIdentifier(colName)}`

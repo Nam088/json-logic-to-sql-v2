@@ -126,5 +126,20 @@ describe("DateTime Normalization TDD", () => {
       expect(normalizeDateForDB("not-a-date", "mysql")).toBeNull()
       expect(normalizeDateForDB("not-a-date", "iso")).toBeNull()
     })
+
+    it("rejects timezone-naive datetime strings but accepts timezone-aware and date-only ones", () => {
+      // Timezone naive (should be rejected)
+      expect(normalizeDateForDB("2026-01-15T10:00:00", "mysql")).toBeNull()
+      expect(normalizeDateForDB("2026-01-15 10:00:00", "mysql")).toBeNull()
+      expect(normalizeDateForDB("2026-01-15T10:00:00", "iso")).toBeNull()
+
+      // Timezone aware (should be accepted)
+      expect(normalizeDateForDB("2026-01-15T10:00:00Z", "mysql")).toBe("2026-01-15 10:00:00")
+      expect(normalizeDateForDB("2026-01-15T10:00:00+07:00", "mysql")).toBe("2026-01-15 03:00:00")
+      expect(normalizeDateForDB("2026-01-15T10:00:00-05:00", "mysql")).toBe("2026-01-15 15:00:00")
+
+      // Date only (should be accepted - V8 parses as UTC)
+      expect(normalizeDateForDB("2026-01-15", "mysql")).toBe("2026-01-15 00:00:00")
+    })
   })
 })

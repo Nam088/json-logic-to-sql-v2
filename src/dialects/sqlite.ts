@@ -6,6 +6,7 @@ import { normalizeDateForDB } from "../utils/date.js"
 export const sqliteDialect: Dialect = {
   name: "sqlite",
   paramStyle: "anonymous",
+  supportsArrayOps: false,
   formatParam: () => "?",
   quoteIdentifier: (name) => `"${name.replace(/"/g, '""')}"`,
   jsonPathDialect: "sqlite",

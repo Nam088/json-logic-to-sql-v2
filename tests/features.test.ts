@@ -488,6 +488,45 @@ describe("New Features Suite", () => {
         expect(result.errors[0]?.message).toContain("not supported by MSSQL dialect")
       }
     })
+
+    it("verifies parameterized pagination and clean limitSql/offsetSql in MSSQL", () => {
+      const converter = createConverter(schema, { dialect: "mssql" })
+      const result = converter.toSQL({ "==": [{ var: "name" }, "Alice"] }, undefined, { limit: 10 })
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+
+      // sql must contain ORDER BY (SELECT NULL) but limitSql should not!
+      expect(result.value.sql).toBe("WHERE [name] = ? ORDER BY (SELECT NULL) OFFSET ? ROWS FETCH NEXT ? ROWS ONLY")
+      expect(result.value.limitSql).toBe("OFFSET ? ROWS FETCH NEXT ? ROWS ONLY")
+      expect(result.value.offsetSql).toBeUndefined()
+      // both offset (default 0) and limit should be in params
+      expect(result.value.params).toEqual(["Alice", 0, 10])
+
+      // With named parameters:
+      const namedConverter = createConverter(schema, { dialect: "mssql-named" })
+      const namedResult = namedConverter.toSQL({ "==": [{ var: "name" }, "Alice"] }, undefined, { limit: 10, offset: 5 })
+      expect(namedResult.ok).toBe(true)
+      if (!namedResult.ok) return
+
+      expect(namedResult.value.sql).toBe("WHERE [name] = @name_1 ORDER BY (SELECT NULL) OFFSET @offset_2 ROWS FETCH NEXT @limit_3 ROWS ONLY")
+      expect(namedResult.value.limitSql).toBe("OFFSET @offset_2 ROWS FETCH NEXT @limit_3 ROWS ONLY")
+      expect(namedResult.value.offsetSql).toBe("OFFSET @offset_2 ROWS")
+      expect(namedResult.value.namedParams).toEqual({
+        name_1: "Alice",
+        offset_2: 5,
+        limit_3: 10,
+      })
+
+      // When offset is undefined, it should parameterize 0:
+      const namedResultNoOffset = namedConverter.toSQL({ "==": [{ var: "name" }, "Alice"] }, undefined, { limit: 10 })
+      expect(namedResultNoOffset.ok).toBe(true)
+      if (!namedResultNoOffset.ok) return
+      expect(namedResultNoOffset.value.namedParams).toEqual({
+        name_1: "Alice",
+        offset_2: 0,
+        limit_3: 10,
+      })
+    })
   })
 
   describe("JSON Path with Special Characters Compilation", () => {

@@ -28,7 +28,10 @@ function getOrCompilePattern(pattern: string): RegExp {
   let regex = patternCache.get(pattern)
   if (!regex) {
     if (patternCache.size >= MAX_PATTERN_CACHE) {
-      patternCache.clear()
+      const oldestKey = patternCache.keys().next().value
+      if (oldestKey !== undefined) {
+        patternCache.delete(oldestKey)
+      }
     }
     regex = new RegExp(pattern)
     patternCache.set(pattern, regex)
@@ -65,8 +68,7 @@ export function validateField(
   const fieldDef = schema[fieldName]
 
   if (fieldDef && options?.dialect && (op === "has_any" || op === "has_all" || op === "contained_by")) {
-    const dialectName = options.dialect.name
-    if (dialectName.startsWith("sqlite") || dialectName.startsWith("mssql")) {
+    if (options.dialect.supportsArrayOps === false) {
       errors.push({
         path,
         field: fieldName,
