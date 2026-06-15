@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="vi">
+<html lang="en">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -451,7 +451,7 @@
 <body>
   <header>
     <h1>JSON Logic to SQL Query Builder</h1>
-    <p>Xây dựng bộ lọc động, sinh câu lệnh SQL an toàn và thực thi trên Database</p>
+    <p>Build dynamic filters, compile safe parameterized SQL, and execute queries in real-time</p>
   </header>
 
   <main>
@@ -459,7 +459,7 @@
     <section class="glass-card">
       <div class="card-title">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon></svg>
-        Bộ lọc dữ liệu (Query Builder)
+        Query Filter Builder
       </div>
 
       <div id="builder-root">
@@ -469,7 +469,7 @@
       <div class="action-bar" style="justify-content: flex-end;">
         <button id="run-query-btn" class="btn btn-primary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
-          Chạy truy vấn
+          Run Query
         </button>
       </div>
 
@@ -484,7 +484,7 @@
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"></polyline><polyline points="8 6 2 12 8 18"></polyline></svg>
           SQL Fragment (SQLite)
         </div>
-        <pre id="sql-output" class="code-block">Chưa có truy vấn...</pre>
+        <pre id="sql-output" class="code-block">No query executed yet...</pre>
       </div>
 
       <!-- Parameters Card -->
@@ -500,24 +500,24 @@
       <div class="glass-card output-table-card">
         <div class="card-title">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22c5.523 0 10-4.477 10-10S17.523 2 12 2 2 6.477 2 12s4.477 10 10 10z"></path><path d="M12 6v6l4 2"></path></svg>
-          Kết quả từ Database (<span id="results-count">0</span> dòng)
+          Database Query Results (<span id="results-count">0</span> rows)
         </div>
         <div style="overflow-x: auto;">
           <table id="results-table">
             <thead>
               <tr>
                 <th>ID</th>
-                <th>Tên</th>
-                <th>Tuổi</th>
-                <th>Trạng thái</th>
+                <th>Name</th>
+                <th>Age</th>
+                <th>Status</th>
                 <th>VIP</th>
-                <th>Thành phố (JSON)</th>
-                <th>Đánh giá (JSON)</th>
+                <th>City (JSON)</th>
+                <th>Rating (JSON)</th>
               </tr>
             </thead>
             <tbody id="results-body">
               <tr>
-                <td colspan="7" class="no-data">Nhấn "Chạy truy vấn" để xem kết quả.</td>
+                <td colspan="7" class="no-data">Click "Run Query" to fetch database records.</td>
               </tr>
             </tbody>
           </table>
@@ -559,24 +559,24 @@
       group.innerHTML = `
         <div class="group-header">
           <div style="display: flex; align-items: center; gap: 0.5rem;">
-            <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary); text-transform: uppercase;">Liên kết:</span>
+            <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary); text-transform: uppercase;">Join Type:</span>
             <select class="conj-select">
-              <option value="and">VÀ (AND)</option>
-              <option value="or">HOẶC (OR)</option>
+              <option value="and">AND</option>
+              <option value="or">OR</option>
             </select>
           </div>
           <div class="group-actions">
             <button class="btn btn-secondary btn-sm btn-add-rule">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-              Điều kiện
+              Add Rule
             </button>
             <button class="btn btn-secondary btn-sm btn-add-group">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-              Nhóm con
+              Add Group
             </button>
             ${!isRoot ? `
               <button class="btn btn-danger btn-sm btn-delete-group">
-                Xóa nhóm
+                Delete Group
               </button>
             ` : ''}
           </div>
@@ -617,21 +617,21 @@
 
       row.innerHTML = `
         <div class="form-group">
-          <label>Cột dữ liệu</label>
+          <label>Field</label>
           <select class="field-select" onchange="onFieldChange('${rowId}')">
             ${fieldsHtml}
           </select>
         </div>
         <div class="form-group small">
-          <label>Toán tử</label>
+          <label>Operator</label>
           <select class="operator-select" onchange="onOperatorChange('${rowId}')">
-            <!-- Nạp động -->
+            <!-- Dynamic -->
           </select>
         </div>
         <div class="form-group value-group" style="flex: 2;">
-          <label>Giá trị</label>
+          <label>Value</label>
           <div class="value-input-container">
-            <!-- Nạp động -->
+            <!-- Dynamic -->
           </div>
         </div>
         <button class="btn btn-danger btn-icon-only btn-sm delete-rule-btn" style="align-self: flex-end; margin-bottom: 0.2rem;">
@@ -669,25 +669,25 @@
     }
 
     const OPERATOR_LABELS = {
-      "==": "Bằng (Loose)",
-      "===": "Bằng (Strict)",
-      "!=": "Khác (Loose)",
-      "!==": "Khác (Strict)",
-      ">": "Lớn hơn",
-      "<": "Nhỏ hơn",
-      ">=": "Lớn hơn hoặc bằng",
-      "<=": "Nhỏ hơn hoặc bằng",
-      "between": "Nằm trong khoảng",
-      "in": "Một trong các giá trị",
-      "not_in": "Không thuộc các giá trị",
-      "contains": "Chứa chuỗi",
-      "not_contains": "Không chứa chuỗi",
-      "startsWith": "Bắt đầu với",
-      "endsWith": "Kết thúc với",
-      "like": "Khớp mẫu (LIKE)",
-      "ilike": "Khớp không phân biệt hoa thường (ILIKE)",
-      "is_null": "Rỗng (Null)",
-      "is_not_null": "Khác rỗng (Not Null)"
+      "==": "Equals (Loose)",
+      "===": "Equals (Strict)",
+      "!=": "Not Equals (Loose)",
+      "!==": "Not Equals (Strict)",
+      ">": "Greater Than",
+      "<": "Less Than",
+      ">=": "Greater or Equal",
+      "<=": "Less or Equal",
+      "between": "Between",
+      "in": "In List",
+      "not_in": "Not In List",
+      "contains": "Contains",
+      "not_contains": "Does Not Contain",
+      "startsWith": "Starts With",
+      "endsWith": "Ends With",
+      "like": "Pattern Match (LIKE)",
+      "ilike": "Case-insensitive Match (ILIKE)",
+      "is_null": "Is Null",
+      "is_not_null": "Is Not Null"
     };
 
     function onOperatorChange(rowId) {
@@ -703,7 +703,7 @@
 
       // 1. Đối với toán tử null/not_null -> Không cần giá trị
       if (op === "is_null" || op === "is_not_null") {
-        valContainer.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">Không yêu cầu nhập giá trị</span>`;
+        valContainer.innerHTML = `<span style="color: var(--text-muted); font-size: 0.85rem; font-style: italic;">No value required</span>`;
         return;
       }
 
@@ -712,17 +712,17 @@
         if (componentType === "number-input") {
           valContainer.innerHTML = `
             <div style="display: flex; gap: 0.5rem; align-items: center;">
-              <input type="number" class="val-input-min" placeholder="Từ" style="flex: 1;" />
+              <input type="number" class="val-input-min" placeholder="Min" style="flex: 1;" />
               <span style="color: var(--text-muted)">-</span>
-              <input type="number" class="val-input-max" placeholder="Đến" style="flex: 1;" />
+              <input type="number" class="val-input-max" placeholder="Max" style="flex: 1;" />
             </div>
           `;
         } else {
           valContainer.innerHTML = `
             <div style="display: flex; gap: 0.5rem; align-items: center;">
-              <input type="text" class="val-input-min" placeholder="Từ" style="flex: 1;" />
+              <input type="text" class="val-input-min" placeholder="Min" style="flex: 1;" />
               <span style="color: var(--text-muted)">-</span>
-              <input type="text" class="val-input-max" placeholder="Đến" style="flex: 1;" />
+              <input type="text" class="val-input-max" placeholder="Max" style="flex: 1;" />
             </div>
           `;
         }
@@ -747,7 +747,7 @@
           checkboxHtml += `</div>`;
           valContainer.innerHTML = checkboxHtml;
         } else {
-          valContainer.innerHTML = `<input type="text" class="val-input" placeholder="Các giá trị cách nhau bằng dấu phẩy (,)" style="width: 100%;" />`;
+          valContainer.innerHTML = `<input type="text" class="val-input" placeholder="Comma-separated values (e.g. val1, val2)" style="width: 100%;" />`;
         }
         return;
       }
@@ -857,14 +857,14 @@
       return { [op]: [{ var: field }, value] };
     }
 
-    // Gửi yêu cầu chạy truy vấn lên Backend
+    // Send query request to backend
     async function runQuery() {
       const alert = document.getElementById("error-alert");
       alert.style.display = "none";
 
       const logic = buildJsonLogic();
       if (!logic) {
-        alert.innerText = "Vui lòng thêm ít nhất một điều kiện bộ lọc.";
+        alert.innerText = "Please add at least one query condition.";
         alert.style.display = "block";
         return;
       }
@@ -879,30 +879,30 @@
         const json = await response.json();
 
         if (json.success) {
-          // Hiển thị SQL sinh ra và các tham số
+          // Render SQL output and params
           document.getElementById("sql-output").innerText = json.data.sql;
           document.getElementById("params-output").innerText = JSON.stringify(json.data.params, null, 2);
 
-          // Render bảng kết quả truy vấn
+          // Render database query results
           const tbody = document.getElementById("results-body");
           document.getElementById("results-count").innerText = json.data.rows.length;
           
           if (json.data.rows.length === 0) {
-            tbody.innerHTML = `<tr><td colspan="7" class="no-data">Không tìm thấy kết quả nào khớp với bộ lọc.</td></tr>`;
+            tbody.innerHTML = `<tr><td colspan="7" class="no-data">No records match the filter criteria.</td></tr>`;
             return;
           }
 
           let rowsHtml = "";
           json.data.rows.forEach(user => {
             const statusBadge = user.status === "active" 
-              ? `<span class="badge badge-active">Hoạt động</span>` 
+              ? `<span class="badge badge-active">Active</span>` 
               : user.status === "pending"
-                ? `<span class="badge badge-pending">Đang chờ</span>`
-                : `<span class="badge badge-inactive">Tạm khoá</span>`;
+                ? `<span class="badge badge-pending">Pending</span>`
+                : `<span class="badge badge-inactive">Inactive</span>`;
 
             const vipBadge = user.vip === 1 
               ? `<span class="badge badge-active">VIP</span>`
-              : `<span class="badge badge-inactive">Thường</span>`;
+              : `<span class="badge badge-inactive">Regular</span>`;
 
             // Parse metadata JSON
             let city = "-";
@@ -929,16 +929,16 @@
           });
           tbody.innerHTML = rowsHtml;
         } else {
-          // Hiển thị lỗi kiểm tra
-          let errorText = "Lỗi validation:\n";
+          // Render validation errors
+          let errorText = "Validation errors:\n";
           json.errors.forEach(err => {
-            errorText += `- [${err.code}] Cột "${err.field || ""}": ${err.message}\n`;
+            errorText += `- [${err.code}] Field "${err.field || ""}": ${err.message}\n`;
           });
           alert.innerText = errorText;
           alert.style.display = "block";
         }
       } catch (err) {
-        alert.innerText = "Lỗi kết nối tới server: " + err.message;
+        alert.innerText = "Connection to server failed: " + err.message;
         alert.style.display = "block";
       }
     }

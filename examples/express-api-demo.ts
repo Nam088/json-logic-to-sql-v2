@@ -10,7 +10,7 @@ const app = express()
 app.use(express.json())
 app.use(express.static(path.join(__dirname, "../public")))
 
-// 1. Khởi tạo cơ sở dữ liệu SQLite in-memory và thêm dữ liệu mẫu để chạy thực tế
+// 1. Initialize SQLite in-memory database and populate sample data
 const db = new DatabaseSync(":memory:")
 db.exec(`
   CREATE TABLE api_users (
@@ -26,20 +26,20 @@ db.exec(`
 const insert = db.prepare(`
   INSERT INTO api_users (name, age, status, vip, metadata) VALUES (?, ?, ?, ?, ?)
 `)
-insert.run("Alice", 25, "active", 1, JSON.stringify({ profile: { city: "Hanoi", rating: 5 } }))  // VIP
-insert.run("Bob", 30, "pending", 1, JSON.stringify({ profile: { city: "Saigon", rating: 4 } }))   // VIP
-insert.run("Charlie", 35, "active", 0, JSON.stringify({ profile: { city: "Hanoi", rating: 3 } })) // Non-VIP
-insert.run("David", 17, "active", 1, JSON.stringify({ profile: { city: "Da Nang", rating: 5 } }))   // VIP (minor)
-insert.run("Eve", 40, "inactive", 0, JSON.stringify({ profile: { city: "Saigon", rating: 2 } }))   // Non-VIP
+insert.run("Alice", 25, "active", 1, JSON.stringify({ profile: { city: "New York", rating: 5 } }))  // VIP
+insert.run("Bob", 30, "pending", 1, JSON.stringify({ profile: { city: "Los Angeles", rating: 4 } }))   // VIP
+insert.run("Charlie", 35, "active", 0, JSON.stringify({ profile: { city: "New York", rating: 3 } })) // Non-VIP
+insert.run("David", 17, "active", 1, JSON.stringify({ profile: { city: "Chicago", rating: 5 } }))   // VIP (minor)
+insert.run("Eve", 40, "inactive", 0, JSON.stringify({ profile: { city: "Los Angeles", rating: 2 } }))   // Non-VIP
 
-// 2. Định nghĩa FieldSchema ở Backend
+// 2. Define FieldSchema on the Backend
 const schema: FieldSchema = {
   id: {
     type: "number",
     operators: ["==", "===", "!=", "!==", ">", "<", ">=", "<=", "between", "in", "not_in"],
     config: {
-      label: "ID người dùng",
-      placeholder: "Nhập ID...",
+      label: "User ID",
+      placeholder: "Enter ID...",
       component: "number-input",
     },
   },
@@ -47,8 +47,8 @@ const schema: FieldSchema = {
     type: "string",
     operators: ["==", "===", "!=", "!==", "contains", "not_contains", "startsWith", "endsWith", "like", "ilike", "is_null", "is_not_null"],
     config: {
-      label: "Họ và tên",
-      placeholder: "Nhập tên tìm kiếm...",
+      label: "Full Name",
+      placeholder: "Enter name...",
       component: "text-input",
     },
   },
@@ -57,8 +57,8 @@ const schema: FieldSchema = {
     operators: ["==", "===", "!=", "!==", ">", "<", ">=", "<=", "between", "is_null", "is_not_null"],
     constraints: { min: 0, max: 120 },
     config: {
-      label: "Tuổi",
-      placeholder: "Nhập số tuổi (0-120)",
+      label: "Age",
+      placeholder: "Enter age (0-120)",
       component: "number-input",
     },
   },
@@ -67,8 +67,8 @@ const schema: FieldSchema = {
     operators: ["==", "===", "!=", "!==", "in", "not_in", "is_null", "is_not_null"],
     constraints: { allowedValues: ["active", "inactive", "pending"] },
     config: {
-      label: "Trạng thái",
-      placeholder: "Chọn trạng thái...",
+      label: "Status",
+      placeholder: "Select status...",
       component: "select",
     },
   },
@@ -76,7 +76,7 @@ const schema: FieldSchema = {
     type: "boolean",
     operators: ["==", "===", "!=", "!==", "is_null", "is_not_null"],
     config: {
-      label: "Thành viên VIP",
+      label: "VIP Member",
       component: "switch",
     },
   },
@@ -86,8 +86,8 @@ const schema: FieldSchema = {
     jsonPath: ["profile", "city"],
     operators: ["==", "===", "!=", "!==", "contains", "startsWith", "is_null", "is_not_null"],
     config: {
-      label: "Thành phố (JSON)",
-      placeholder: "Nhập thành phố...",
+      label: "City (JSON)",
+      placeholder: "Enter city...",
       component: "text-input",
     },
   },
@@ -97,19 +97,19 @@ const schema: FieldSchema = {
     jsonPath: ["profile", "rating"],
     operators: ["==", "===", "!=", "!==", ">", "<", "between", "is_null", "is_not_null"],
     config: {
-      label: "Đánh giá sao (JSON)",
-      placeholder: "Nhập số sao (1-5)",
+      label: "Rating Stars (JSON)",
+      placeholder: "Enter rating (1-5)",
       component: "number-input",
     },
   },
 }
 
-// Khởi tạo bộ biên dịch target SQLite Dialect
+// Initialize compiler targeting SQLite Dialect
 const converter = createConverter(schema, { dialect: "sqlite", sort: true })
 
 /**
  * Endpoint 1: GET /api/schema
- * Trả về Public Schema đã dọn dẹp các trường bảo mật để Frontend render giao diện bộ lọc.
+ * Returns the public schema for the frontend to render query builder UI.
  */
 app.get("/api/schema", (_req, res) => {
   const publicSchema = toPublicSchema(schema)
@@ -121,16 +121,16 @@ app.get("/api/schema", (_req, res) => {
 
 /**
  * Endpoint 2: POST /api/query
- * Nhận cấu trúc JSON Logic từ Client, kiểm tra tính hợp lệ và thực thi truy vấn.
+ * Receives JSON Logic query, validates and executes it.
  */
 app.post("/api/query", (req, res) => {
   const { filter, sort, pagination } = req.body
 
-  // Biên dịch và validate an toàn
+  // Safe compilation and validation
   const result = converter.toSQL(filter, sort, pagination)
 
   if (!result.ok) {
-    // Trả về mã lỗi 400 và chi tiết lỗi kiểm tra schema (chống probing/smuggling)
+    // Return validation errors
     res.status(400).json({
       success: false,
       errors: result.errors,
@@ -141,11 +141,11 @@ app.post("/api/query", (req, res) => {
   const { sql, params, filterSql, filterParams } = result.value
 
   try {
-    // A. Thực thi truy vấn danh sách (List Query) kèm LIMIT/OFFSET
+    // A. Execute list query with LIMIT/OFFSET
     const listStmt = db.prepare(`SELECT * FROM api_users ${sql}`)
     const rows = listStmt.all(...(params as any[]))
 
-    // B. Thực thi truy vấn đếm số lượng (Count Query) dùng filterParams (không bị lệch tham số do LIMIT/OFFSET)
+    // B. Execute count query (without LIMIT/OFFSET parameters)
     const countStmt = db.prepare(`SELECT COUNT(*) as total FROM api_users ${filterSql}`)
     const countRes = countStmt.all(...(filterParams as any[])) as any[]
     const total = countRes[0]?.total ?? 0
@@ -162,18 +162,18 @@ app.post("/api/query", (req, res) => {
   } catch (error: any) {
     res.status(500).json({
       success: false,
-      message: error.message || "Lỗi truy vấn cơ sở dữ liệu",
+      message: error.message || "Database query error",
     })
   }
 })
 
-// Khởi động server demo trên cổng 3000
+// Listen on port 3000
 const PORT = 3000
 const server = app.listen(PORT, () => {
-  console.log(`[Express API] Server đang chạy tại http://localhost:${PORT}`)
-  console.log(`[GET]  Lấy schema giao diện: http://localhost:${PORT}/api/schema`)
-  console.log(`[POST] Truy vấn dữ liệu an toàn: http://localhost:${PORT}/api/query`)
+  console.log(`[Express API] Server is running at http://localhost:${PORT}`)
+  console.log(`[GET]  Get UI schema: http://localhost:${PORT}/api/schema`)
+  console.log(`[POST] Safe query execution: http://localhost:${PORT}/api/query`)
 })
 
-// Hỗ trợ tắt server sạch sẽ nếu cần
+// Clean shutdown support
 export { server }
