@@ -3,6 +3,7 @@ import { createConverter } from "../src/index.js"
 import { postgresDialect } from "../src/dialects/postgres.js"
 import { sqliteDialect } from "../src/dialects/sqlite.js"
 import type { FieldSchema } from "../src/types.js"
+import { normalizeDateForDB } from "../src/utils/date.js"
 
 const schema: FieldSchema = {
   created_at: {
@@ -117,6 +118,13 @@ describe("DateTime Normalization TDD", () => {
       const date = new Date("2026-01-01T00:00:00.000Z")
       const result = sqliteDialect.transformParam!(date as any, "string")
       expect(result).toBe(date)
+    })
+  })
+
+  describe("Bug 2 — invalid date handling", () => {
+    it("returns null for invalid date strings", () => {
+      expect(normalizeDateForDB("not-a-date", "mysql")).toBeNull()
+      expect(normalizeDateForDB("not-a-date", "iso")).toBeNull()
     })
   })
 })

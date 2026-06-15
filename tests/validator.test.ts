@@ -2,6 +2,9 @@ import { describe, it, expect } from "vitest"
 import { OperatorRegistry } from "../src/registry/index.js"
 import { validate } from "../src/validator/index.js"
 import type { FieldSchema } from "../src/types.js"
+import { sqliteDialect } from "../src/dialects/sqlite.js"
+import { mssqlDialect } from "../src/dialects/mssql.js"
+import { postgresDialect } from "../src/dialects/postgres.js"
 
 const registry = new OperatorRegistry()
 
@@ -395,6 +398,48 @@ describe("Code Review Validator Fixes", () => {
       age: { type: "number", operators: [">"], constraints: { min: "invalid", max: "invalid" } },
     }
     const errors = validate({ ">": [{ var: "age" }, 25] }, invalidSchema, registry, opts)
+    expect(errors).toHaveLength(0)
+  })
+})
+
+describe("Bug 1 — Array Operator Dialect support validation", () => {
+  const arraySchema: FieldSchema = {
+    tags: { type: "array", operators: ["has_any", "has_all"] }
+  }
+
+  it("rejects array_op on SQLite", () => {
+    const errors = validate(
+      { has_any: [{ var: "tags" }, ["news"]] },
+      arraySchema,
+      registry,
+      { ...opts, dialect: sqliteDialect }
+    )
+    expect(errors).toHaveLength(1)
+    expect(errors[0]?.code).toBe("OPERATOR_NOT_ALLOWED")
+    expect(errors[0]?.operator).toBe("has_any")
+    expect(errors[0]?.field).toBe("tags")
+  })
+
+  it("rejects array_op on MSSQL", () => {
+    const errors = validate(
+      { has_all: [{ var: "tags" }, ["news"]] },
+      arraySchema,
+      registry,
+      { ...opts, dialect: mssqlDialect }
+    )
+    expect(errors).toHaveLength(1)
+    expect(errors[0]?.code).toBe("OPERATOR_NOT_ALLOWED")
+    expect(errors[0]?.operator).toBe("has_all")
+    expect(errors[0]?.field).toBe("tags")
+  })
+
+  it("allows array_op on Postgres", () => {
+    const errors = validate(
+      { has_any: [{ var: "tags" }, ["news"]] },
+      arraySchema,
+      registry,
+      { ...opts, dialect: postgresDialect }
+    )
     expect(errors).toHaveLength(0)
   })
 })

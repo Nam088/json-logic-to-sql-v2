@@ -1,5 +1,6 @@
 import type { FieldSchema, ValidationError, Primitive, AllowedValue } from "../types.js"
 import type { OperatorRegistry } from "../registry/index.js"
+import type { ValidatorOptions } from "./index.js"
 
 const FORMAT_PATTERNS: Record<string, RegExp> = {
   email: /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
@@ -41,7 +42,8 @@ export function validateField(
   schema: FieldSchema,
   registry: OperatorRegistry,
   path: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  options?: ValidatorOptions
 ): void {
   if (!Array.isArray(args) || args.length < 1) {
     errors.push({ path, operator: op, message: `"${op}" expects an array of arguments`, code: "INVALID_STRUCTURE" })
@@ -61,6 +63,20 @@ export function validateField(
 
   const fieldName = varNode.var
   const fieldDef = schema[fieldName]
+
+  if (fieldDef && options?.dialect && (op === "has_any" || op === "has_all" || op === "contained_by")) {
+    const dialectName = options.dialect.name
+    if (dialectName.startsWith("sqlite") || dialectName.startsWith("mssql")) {
+      errors.push({
+        path,
+        field: fieldName,
+        operator: op,
+        message: `Operator "${op}" is not supported by ${options.dialect.name} dialect`,
+        code: "OPERATOR_NOT_ALLOWED",
+      })
+      return
+    }
+  }
 
   if (!fieldDef) {
     errors.push({

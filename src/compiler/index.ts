@@ -48,7 +48,11 @@ export function compile(
       const def = schema[field]
       const colName = def?.internal?.column ?? def?.columnName ?? field
       const tablePrefix = def?.internal?.alias ?? def?.internal?.table
-      const dir = direction.toUpperCase() as "ASC" | "DESC"
+      const upperDir = direction.toUpperCase()
+      if (upperDir !== "ASC" && upperDir !== "DESC") {
+        throw new Error(`Invalid sort direction: "${direction}". Must be "asc" or "desc".`)
+      }
+      const dir = upperDir as "ASC" | "DESC"
       orderFields.push({ column: colName, direction: dir })
       const quotedCol = tablePrefix
         ? `${dialect.quoteIdentifier(tablePrefix)}.${dialect.quoteIdentifier(colName)}`
@@ -107,11 +111,11 @@ export function compile(
     offsetSql: offsetSql || undefined,
     params,
     filterParams,
-    filterNamedParams,
   }
 
   if (dialect.paramStyle === "named") {
     result.namedParams = namedParams
+    result.filterNamedParams = filterNamedParams
   }
 
   return result
