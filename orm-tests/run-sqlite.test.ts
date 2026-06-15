@@ -109,7 +109,7 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
     })
 
     const stmt = db.prepare(`SELECT * FROM test_users ${sql}`)
-    const rows = stmt.all(namedParams) as any[]
+    const rows = stmt.all(namedParams as any) as any[]
 
     expect(rows).toHaveLength(2)
     expect(rows[0].name).toBe("Bob")
@@ -132,12 +132,12 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
 
     // List query (only 1 row)
     const listStmt = db.prepare(`SELECT * FROM test_users ${sql}`)
-    const listRows = listStmt.all(...params) as any[]
+    const listRows = listStmt.all(...(params as any[])) as any[]
     expect(listRows).toHaveLength(1)
 
     // Count query (total records matching filter, should be 3: Alice, Bob, David)
     const countStmt = db.prepare(`SELECT COUNT(*) as total FROM test_users ${filterSql}`)
-    const countRows = countStmt.all(...filterParams) as any[]
+    const countRows = countStmt.all(...(filterParams as any[])) as any[]
     expect(countRows[0].total).toBe(3)
   })
 })
