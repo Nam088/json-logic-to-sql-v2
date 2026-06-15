@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { createConverter } from "../src/index.js"
+import { postgresDialect } from "../src/dialects/postgres.js"
+import { sqliteDialect } from "../src/dialects/sqlite.js"
 import type { FieldSchema } from "../src/types.js"
 
 const schema: FieldSchema = {
@@ -101,6 +103,20 @@ describe("DateTime Normalization TDD", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.params).toEqual(["2026-06-15T12:34:56.789Z"])
+    })
+  })
+
+  describe("transformParam - only date fields should be normalized", () => {
+    it("postgres: passes through Date object unchanged when fieldType is not 'date'", () => {
+      const date = new Date("2026-01-01T00:00:00.000Z")
+      const result = postgresDialect.transformParam!(date as any, "string")
+      expect(result).toBe(date)
+    })
+
+    it("sqlite: passes through Date object unchanged when fieldType is not 'date'", () => {
+      const date = new Date("2026-01-01T00:00:00.000Z")
+      const result = sqliteDialect.transformParam!(date as any, "string")
+      expect(result).toBe(date)
     })
   })
 })

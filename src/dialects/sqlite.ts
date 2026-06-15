@@ -13,7 +13,7 @@ export const sqliteDialect: Dialect = {
     if (typeof value === "boolean") {
       return value ? 1 : 0
     }
-    if (fieldType === "date" || (value as any) instanceof Date) {
+    if (fieldType === "date") {
       return normalizeDateForDB(value, "iso")
     }
     return value
