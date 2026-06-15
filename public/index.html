@@ -400,6 +400,52 @@
       margin: 0;
       width: auto;
     }
+
+    /* Nested Query Group Styling */
+    .query-group {
+      background: rgba(255, 255, 255, 0.015);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      border-radius: 12px;
+      padding: 1rem;
+      margin-bottom: 1rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      position: relative;
+    }
+
+    .query-group .query-group {
+      margin-left: 1.5rem;
+      border-left: 2px solid var(--primary);
+      background: rgba(255, 255, 255, 0.005);
+    }
+
+    .group-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 1rem;
+      flex-wrap: wrap;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+      padding-bottom: 0.5rem;
+    }
+
+    .group-actions {
+      display: flex;
+      gap: 0.5rem;
+    }
+
+    .group-rules {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+
+    .btn-sm {
+      padding: 0.4rem 0.8rem;
+      font-size: 0.8rem;
+      border-radius: 6px;
+    }
   </style>
 </head>
 <body>
@@ -416,16 +462,11 @@
         Bộ lọc dữ liệu (Query Builder)
       </div>
 
-      <div id="rules-container">
-        <!-- Rule Rows will be inserted here dynamically -->
+      <div id="builder-root">
+        <!-- The root query-group will be inserted here dynamically -->
       </div>
 
-      <div class="action-bar">
-        <button id="add-rule-btn" class="btn btn-secondary">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-          Thêm điều kiện
-        </button>
-
+      <div class="action-bar" style="justify-content: flex-end;">
         <button id="run-query-btn" class="btn btn-primary">
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"></polygon></svg>
           Chạy truy vấn
@@ -508,23 +549,80 @@
         const json = await res.json();
         if (json.success) {
           schema = json.schema;
-          // Thêm mặc định 1 dòng điều kiện
-          addRuleRow();
+          
+          // Khởi tạo root group và thêm một rule mặc định
+          const builderRoot = document.getElementById("builder-root");
+          const rootGroup = createGroup(true);
+          builderRoot.appendChild(rootGroup);
+          
+          // Thêm 1 dòng điều kiện mặc định vào root group
+          rootGroup.querySelector(".group-rules").appendChild(createRuleRow(rootGroup.id));
         }
       } catch (err) {
         console.error("Lỗi khi load schema:", err);
       }
     }
 
-    function addRuleRow() {
-      const container = document.getElementById("rules-container");
+    function createGroup(isRoot = false) {
+      const groupId = 'group-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
+      const group = document.createElement("div");
+      group.className = "query-group";
+      group.id = groupId;
+
+      group.innerHTML = `
+        <div class="group-header">
+          <div style="display: flex; align-items: center; gap: 0.5rem;">
+            <span style="font-size: 0.8rem; font-weight: 700; color: var(--primary); text-transform: uppercase;">Liên kết:</span>
+            <select class="conj-select">
+              <option value="and">VÀ (AND)</option>
+              <option value="or">HOẶC (OR)</option>
+            </select>
+          </div>
+          <div class="group-actions">
+            <button class="btn btn-secondary btn-sm btn-add-rule">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+              Điều kiện
+            </button>
+            <button class="btn btn-secondary btn-sm btn-add-group">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+              Nhóm con
+            </button>
+            ${!isRoot ? `
+              <button class="btn btn-danger btn-sm btn-delete-group">
+                Xóa nhóm
+              </button>
+            ` : ''}
+          </div>
+        </div>
+        <div class="group-rules"></div>
+      `;
+
+      const rulesContainer = group.querySelector(".group-rules");
+
+      // Bind events
+      group.querySelector(".btn-add-rule").addEventListener("click", () => {
+        rulesContainer.appendChild(createRuleRow(groupId));
+      });
+
+      group.querySelector(".btn-add-group").addEventListener("click", () => {
+        rulesContainer.appendChild(createGroup(false));
+      });
+
+      if (!isRoot) {
+        group.querySelector(".btn-delete-group").addEventListener("click", () => {
+          group.remove();
+        });
+      }
+
+      return group;
+    }
+
+    function createRuleRow(groupId) {
       const rowId = 'row-' + Date.now() + '-' + Math.random().toString(36).substr(2, 9);
-      
       const row = document.createElement("div");
       row.className = "rule-row";
       row.id = rowId;
 
-      // Dropdown chọn Trường
       let fieldsHtml = "";
       for (const key in schema) {
         fieldsHtml += `<option value="${key}">${schema[key].config?.label || key}</option>`;
@@ -540,33 +638,35 @@
         <div class="form-group small">
           <label>Toán tử</label>
           <select class="operator-select" onchange="onOperatorChange('${rowId}')">
-            <!-- Nạp động dựa vào trường được chọn -->
+            <!-- Nạp động -->
           </select>
         </div>
         <div class="form-group value-group" style="flex: 2;">
           <label>Giá trị</label>
           <div class="value-input-container">
-            <!-- Nạp động dựa vào toán tử và trường -->
+            <!-- Nạp động -->
           </div>
         </div>
-        <button class="btn btn-danger btn-icon-only" onclick="deleteRow('${rowId}')">
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path><line x1="10" y1="11" x2="10" y2="17"></line><line x1="14" y1="11" x2="14" y2="17"></line></svg>
+        <button class="btn btn-danger btn-icon-only btn-sm delete-rule-btn" style="align-self: flex-end; margin-bottom: 0.2rem;">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
         </button>
       `;
 
-      container.appendChild(row);
-      onFieldChange(rowId);
-    }
-
-    function deleteRow(rowId) {
-      const row = document.getElementById(rowId);
-      if (row) {
+      row.querySelector(".delete-rule-btn").addEventListener("click", () => {
         row.remove();
-      }
+      });
+
+      // trigger initial field setup via setTimeout to ensure DOM is attached
+      setTimeout(() => {
+        onFieldChange(rowId);
+      }, 0);
+
+      return row;
     }
 
     function onFieldChange(rowId) {
       const row = document.getElementById(rowId);
+      if (!row) return;
       const fieldKey = row.querySelector(".field-select").value;
       const fieldDef = schema[fieldKey];
       const opSelect = row.querySelector(".operator-select");
@@ -581,8 +681,31 @@
       onOperatorChange(rowId);
     }
 
+    const OPERATOR_LABELS = {
+      "==": "Bằng (Loose)",
+      "===": "Bằng (Strict)",
+      "!=": "Khác (Loose)",
+      "!==": "Khác (Strict)",
+      ">": "Lớn hơn",
+      "<": "Nhỏ hơn",
+      ">=": "Lớn hơn hoặc bằng",
+      "<=": "Nhỏ hơn hoặc bằng",
+      "between": "Nằm trong khoảng",
+      "in": "Một trong các giá trị",
+      "not_in": "Không thuộc các giá trị",
+      "contains": "Chứa chuỗi",
+      "not_contains": "Không chứa chuỗi",
+      "startsWith": "Bắt đầu với",
+      "endsWith": "Kết thúc với",
+      "like": "Khớp mẫu (LIKE)",
+      "ilike": "Khớp không phân biệt hoa thường (ILIKE)",
+      "is_null": "Rỗng (Null)",
+      "is_not_null": "Khác rỗng (Not Null)"
+    };
+
     function onOperatorChange(rowId) {
       const row = document.getElementById(rowId);
+      if (!row) return;
       const fieldKey = row.querySelector(".field-select").value;
       const fieldDef = schema[fieldKey];
       const op = row.querySelector(".operator-select").value;
@@ -674,64 +797,77 @@
 
     // Chuyển đổi giao diện người dùng cấu hình thành định dạng JSON Logic
     function buildJsonLogic() {
-      const rows = document.querySelectorAll(".rule-row");
-      if (rows.length === 0) return null;
+      const rootGroup = document.querySelector("#builder-root > .query-group");
+      if (!rootGroup) return null;
+      return getGroupLogic(rootGroup);
+    }
+
+    function getGroupLogic(groupEl) {
+      const conj = groupEl.querySelector(":scope > .group-header .conj-select").value;
+      const rulesContainer = groupEl.querySelector(":scope > .group-rules");
+      const children = rulesContainer.children;
 
       const conditions = [];
 
-      rows.forEach(row => {
-        const field = row.querySelector(".field-select").value;
-        const op = row.querySelector(".operator-select").value;
-        const fieldDef = schema[field];
-
-        let value;
-
-        if (op === "is_null" || op === "is_not_null") {
-          // Toán tử kiểm tra rỗng
-          conditions.push({ [op]: [{ var: field }] });
-          return;
-        }
-
-        if (op === "between") {
-          // Toán tử khoảng
-          const minValStr = row.querySelector(".val-input-min").value;
-          const maxValStr = row.querySelector(".val-input-max").value;
-          const minVal = fieldDef.type === "number" ? parseFloat(minValStr) : minValStr;
-          const maxVal = fieldDef.type === "number" ? parseFloat(maxValStr) : maxValStr;
-          conditions.push({ between: [{ var: field }, minVal, maxVal] });
-          return;
-        }
-
-        if (op === "in" || op === "not_in") {
-          // Toán tử trong danh sách
-          if (fieldDef.constraints?.allowedValues) {
-            const checkboxes = row.querySelectorAll(".val-input-multi:checked");
-            value = Array.from(checkboxes).map(cb => cb.value);
-          } else {
-            const commaStr = row.querySelector(".val-input").value;
-            value = commaStr.split(",").map(s => s.trim()).filter(Boolean);
+      for (const child of children) {
+        if (child.classList.contains("rule-row")) {
+          const ruleLogic = getRuleRowLogic(child);
+          if (ruleLogic) {
+            conditions.push(ruleLogic);
           }
-          conditions.push({ [op]: [{ var: field }, value] });
-          return;
+        } else if (child.classList.contains("query-group")) {
+          const subGroupLogic = getGroupLogic(child);
+          if (subGroupLogic) {
+            conditions.push(subGroupLogic);
+          }
         }
-
-        // Toán tử cơ bản
-        if (fieldDef.config?.component === "switch") {
-          value = row.querySelector(".val-input-boolean").checked;
-        } else {
-          const valStr = row.querySelector(".val-input").value;
-          value = fieldDef.type === "number" ? parseFloat(valStr) : valStr;
-        }
-
-        // contains operator maps to contains, etc.
-        conditions.push({ [op]: [{ var: field }, value] });
-      });
-
-      if (conditions.length === 1) {
-        return conditions[0];
       }
 
-      return { and: conditions };
+      if (conditions.length === 0) return null;
+      if (conditions.length === 1) return conditions[0];
+
+      return { [conj]: conditions };
+    }
+
+    function getRuleRowLogic(row) {
+      const field = row.querySelector(".field-select").value;
+      const op = row.querySelector(".operator-select").value;
+      const fieldDef = schema[field];
+
+      let value;
+
+      if (op === "is_null" || op === "is_not_null") {
+        return { [op]: [{ var: field }] };
+      }
+
+      if (op === "between") {
+        const minValStr = row.querySelector(".val-input-min").value;
+        const maxValStr = row.querySelector(".val-input-max").value;
+        const minVal = fieldDef.type === "number" ? parseFloat(minValStr) : minValStr;
+        const maxVal = fieldDef.type === "number" ? parseFloat(maxValStr) : maxValStr;
+        return { between: [{ var: field }, minVal, maxVal] };
+      }
+
+      if (op === "in" || op === "not_in") {
+        if (fieldDef.constraints?.allowedValues) {
+          const checkboxes = row.querySelectorAll(".val-input-multi:checked");
+          value = Array.from(checkboxes).map(cb => cb.value);
+        } else {
+          const commaStr = row.querySelector(".val-input").value;
+          value = commaStr.split(",").map(s => s.trim()).filter(Boolean);
+        }
+        return { [op]: [{ var: field }, value] };
+      }
+
+      // Basic operators
+      if (fieldDef.config?.component === "switch") {
+        value = row.querySelector(".val-input-boolean").checked;
+      } else {
+        const valStr = row.querySelector(".val-input").value;
+        value = fieldDef.type === "number" ? parseFloat(valStr) : valStr;
+      }
+
+      return { [op]: [{ var: field }, value] };
     }
 
     // Gửi yêu cầu chạy truy vấn lên Backend
@@ -820,7 +956,6 @@
       }
     }
 
-    document.getElementById("add-rule-btn").addEventListener("click", addRuleRow);
     document.getElementById("run-query-btn").addEventListener("click", runQuery);
 
     // Bắt đầu tải schema khi trang web được tải
