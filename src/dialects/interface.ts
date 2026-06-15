@@ -22,6 +22,11 @@ export interface Dialect {
   name: string
   paramStyle: ParamStyle
   /**
+   * Declares whether the dialect supports array-operator AST nodes (like has_any, has_all, contained_by).
+   * If false, validator blocks these operators for this dialect. Defaults to true (undefined = true).
+   */
+  supportsArrayOps?: boolean
+  /**
    * Explicitly declares which JSON path syntax this dialect uses.
    * When set, `compileField` uses this value instead of inferring from `dialect.name`.
    * Custom dialects should set this to avoid relying on name-prefix conventions.

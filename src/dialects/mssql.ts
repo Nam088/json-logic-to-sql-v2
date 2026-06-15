@@ -6,6 +6,7 @@ import { normalizeDateForDB } from "../utils/date.js"
 export const mssqlDialect: Dialect = {
   name: "mssql",
   paramStyle: "anonymous",
+  supportsArrayOps: false,
   formatParam: () => "?",
   quoteIdentifier: (name) => `[${name.replace(/]/g, "]]")}]`,
   jsonPathDialect: "mssql",
@@ -85,7 +86,7 @@ export const mssqlDialect: Dialect = {
     let offsetSql: string | undefined = undefined
 
     if (limit !== undefined) {
-      const off = offset !== undefined ? addParam(offset, "offset") : "0"
+      const off = offset !== undefined ? addParam(offset, "offset") : addParam(0, "offset")
       const lim = addParam(limit, "limit")
       sql = `OFFSET ${off} ROWS FETCH NEXT ${lim} ROWS ONLY`
       limitSql = `OFFSET ${off} ROWS FETCH NEXT ${lim} ROWS ONLY`
@@ -97,12 +98,10 @@ export const mssqlDialect: Dialect = {
     }
 
     // MSSQL requires ORDER BY before OFFSET. If the caller hasn't supplied one,
-    // we inject a no-op ORDER BY into ALL output fields so they stay consistent.
+    // we inject a no-op ORDER BY into the combined sql string.
+    // The limitSql and offsetSql are kept as pure pagination fragments.
     if (sql && !hasOrderBy) {
-      const orderByPrefix = `ORDER BY (SELECT NULL) `
-      sql = `${orderByPrefix}${sql}`
-      if (limitSql !== undefined) limitSql = `${orderByPrefix}${limitSql}`
-      if (offsetSql !== undefined) offsetSql = `${orderByPrefix}${offsetSql}`
+      sql = `ORDER BY (SELECT NULL) ${sql}`
     }
 
     return { sql, limitSql, offsetSql }
