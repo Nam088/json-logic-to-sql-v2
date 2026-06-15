@@ -7,6 +7,13 @@ export const sqliteDialect: Dialect = {
   paramStyle: "anonymous",
   formatParam: () => "?",
   quoteIdentifier: (name) => `"${name.replace(/"/g, '""')}"`,
+  transformParam: (value) => {
+    if (typeof value === "boolean") {
+      return value ? 1 : 0
+    }
+    return value
+  },
+
 
   compileNode(node: AstNode, ctx: CompileContext): string {
     const col = "columnName" in node ? compileField(node as any, ctx.dialect) : ""

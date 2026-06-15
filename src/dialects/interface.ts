@@ -24,6 +24,7 @@ export interface Dialect {
   formatParam: (index: number, name?: string) => string
   quoteIdentifier: (name: string) => string
   compileNode: (node: AstNode, ctx: CompileContext) => string
+  transformParam?: (value: Primitive) => Primitive
   compilePagination?: (
     limit: number | undefined,
     offset: number | undefined,
@@ -35,3 +36,4 @@ export interface Dialect {
     offsetSql?: string | undefined
   }
 }
+

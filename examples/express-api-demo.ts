@@ -104,14 +104,11 @@ app.post("/api/query", (req, res) => {
   try {
     // A. Thực thi truy vấn danh sách (List Query) kèm LIMIT/OFFSET
     const listStmt = db.prepare(`SELECT * FROM api_users ${sql}`)
-    // Chuyển đổi boolean thành 0/1 cho tương thích SQLite
-    const sqliteParams = params.map((p) => (typeof p === "boolean" ? (p ? 1 : 0) : p))
-    const rows = listStmt.all(...(sqliteParams as any[]))
+    const rows = listStmt.all(...(params as any[]))
 
     // B. Thực thi truy vấn đếm số lượng (Count Query) dùng filterParams (không bị lệch tham số do LIMIT/OFFSET)
     const countStmt = db.prepare(`SELECT COUNT(*) as total FROM api_users ${filterSql}`)
-    const sqliteFilterParams = filterParams.map((p) => (typeof p === "boolean" ? (p ? 1 : 0) : p))
-    const countRes = countStmt.all(...(sqliteFilterParams as any[])) as any[]
+    const countRes = countStmt.all(...(filterParams as any[])) as any[]
     const total = countRes[0]?.total ?? 0
 
     res.json({

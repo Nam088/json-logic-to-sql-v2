@@ -16,15 +16,17 @@ export function compile(
   const paramIndex = { current: 1 }
 
   const addParam = (value: Primitive, nameHint?: string): string => {
-    params.push(value)
+    const transformed = dialect.transformParam ? dialect.transformParam(value) : value
+    params.push(transformed)
     const placeholder = dialect.formatParam(paramIndex.current, nameHint)
     if (dialect.paramStyle === "named") {
       const key = placeholder.startsWith(":") || placeholder.startsWith("@") ? placeholder.substring(1) : placeholder
-      namedParams[key] = value
+      namedParams[key] = transformed
     }
     paramIndex.current++
     return placeholder
   }
+
 
   const ctx: CompileContext = {
     node: ast,

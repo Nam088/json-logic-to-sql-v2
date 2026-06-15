@@ -67,11 +67,10 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
 
     const { sql, params } = result.value
     expect(sql).toBe('WHERE ("vip" = ? AND "status" IN (?, ?) AND "age" >= ?) ORDER BY "salary" DESC LIMIT ? OFFSET ?')
-    expect(params).toEqual([true, "active", "pending", 22, 10, 0])
+    expect(params).toEqual([1, "active", "pending", 22, 10, 0])
 
     const stmt = db.prepare(`SELECT * FROM test_users ${sql}`)
-    const sqliteParams = params.map((p) => (typeof p === "boolean" ? (p ? 1 : 0) : p))
-    const rows = stmt.all(...(sqliteParams as any[])) as any[]
+    const rows = stmt.all(...(params as any[])) as any[]
 
     expect(rows).toHaveLength(2)
     expect(rows[0].name).toBe("Bob")
@@ -101,7 +100,7 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
       'WHERE ("vip" = :vip_1 AND "status" IN (:status_0_2, :status_1_3) AND "age" >= :age_4) ORDER BY "salary" DESC LIMIT :limit_5 OFFSET :offset_6'
     )
     expect(namedParams).toEqual({
-      vip_1: true,
+      vip_1: 1,
       status_0_2: "active",
       status_1_3: "pending",
       age_4: 22,
@@ -110,11 +109,7 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
     })
 
     const stmt = db.prepare(`SELECT * FROM test_users ${sql}`)
-    const boundNamedParams: Record<string, any> = {}
-    for (const [key, val] of Object.entries(namedParams || {})) {
-      boundNamedParams[key] = typeof val === "boolean" ? (val ? 1 : 0) : val
-    }
-    const rows = stmt.all(boundNamedParams) as any[]
+    const rows = stmt.all(namedParams) as any[]
 
     expect(rows).toHaveLength(2)
     expect(rows[0].name).toBe("Bob")
@@ -137,12 +132,12 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
 
     // List query (only 1 row)
     const listStmt = db.prepare(`SELECT * FROM test_users ${sql}`)
-    const listRows = listStmt.all(...params.map((p) => (typeof p === "boolean" ? (p ? 1 : 0) : p))) as any[]
+    const listRows = listStmt.all(...params) as any[]
     expect(listRows).toHaveLength(1)
 
     // Count query (total records matching filter, should be 3: Alice, Bob, David)
     const countStmt = db.prepare(`SELECT COUNT(*) as total FROM test_users ${filterSql}`)
-    const countRows = countStmt.all(...filterParams.map((p) => (typeof p === "boolean" ? (p ? 1 : 0) : p))) as any[]
+    const countRows = countStmt.all(...filterParams) as any[]
     expect(countRows[0].total).toBe(3)
   })
 })
