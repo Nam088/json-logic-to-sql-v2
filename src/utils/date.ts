@@ -6,17 +6,17 @@
 export function normalizeDateForDB(
   value: unknown,
   format: "mysql" | "mssql" | "iso" | "unix"
-): any {
-  if (value === null || value === undefined) return value
+): string | number | null {
+  if (value == null) return null
 
   // If it's a string, try to parse it. If it's a Date, use it. Otherwise, pass it through.
   if (typeof value !== "string" && !(value instanceof Date)) {
-    return value
+    return null
   }
 
   const d = value instanceof Date ? value : new Date(value)
   if (isNaN(d.getTime())) {
-    return value // Pass-through invalid date strings (validator will catch them)
+    return typeof value === "string" ? value : null // Pass-through invalid strings (validator will catch them)
   }
 
   switch (format) {

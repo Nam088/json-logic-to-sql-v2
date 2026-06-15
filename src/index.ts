@@ -167,6 +167,7 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
       // node whose operator happens to be named "rule" or "logic" with extra unknown keys).
       // Known limitation: { rule: [{ var: "field" }, value] } is ambiguous when "rule" is a custom
       // operator — avoid naming custom operators "rule" or "logic" to prevent this.
+      // Keep in sync with ToSQLSingleObject interface keys when adding new top-level keys.
       const SINGLE_OBJ_KEYS = new Set(["rule", "logic", "sort", "pagination"])
       if (
         jsonLogicOrObj &&

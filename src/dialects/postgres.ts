@@ -10,7 +10,7 @@ export const postgresDialect: Dialect = {
   quoteIdentifier: (name) => `"${name.replace(/"/g, '""')}"`,
   jsonPathDialect: "postgres",
   transformParam: (value, fieldType) => {
-    if (fieldType === "date" || (value as any) instanceof Date) {
+    if (fieldType === "date") {
       return normalizeDateForDB(value, "iso")
     }
     return value
