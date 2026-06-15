@@ -60,6 +60,12 @@ const jsonSchema: FieldSchema = {
     columnName: "user_data",
     jsonPath: ["profile", "name"],
   },
+  "user.id": {
+    type: "uuid",
+    operators: ["=="],
+    columnName: "user_data",
+    jsonPath: ["profile", "id"],
+  },
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -114,6 +120,13 @@ describe("jsonPathDialect — custom dialect JSON path routing", () => {
       // string type has no cast in postgres
       expect(result.value.sql).toBe(`WHERE "user_data"->'profile'->>'name' = $1`)
     })
+
+    it("generates CAST(... AS uuid) for uuid json field", () => {
+      const result = converter.toSQL({ "==": [{ var: "user.id" }, "550e8400-e29b-41d4-a716-446655440000"] })
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.value.sql).toBe(`WHERE CAST("user_data"->'profile'->>'id' AS uuid) = $1`)
+    })
   })
 
   describe("WITH jsonPathDialect: 'mysql'", () => {
@@ -136,6 +149,13 @@ describe("jsonPathDialect — custom dialect JSON path routing", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe('WHERE CAST(`user_data`->>\'$."profile"."vip"\' AS SIGNED) = $1')
+    })
+
+    it("generates CAST(... AS CHAR) for uuid json field", () => {
+      const result = converter.toSQL({ "==": [{ var: "user.id" }, "550e8400-e29b-41d4-a716-446655440000"] })
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.value.sql).toBe('WHERE CAST(`user_data`->>\'$."profile"."id"\' AS CHAR) = $1')
     })
   })
 

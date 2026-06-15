@@ -16,7 +16,7 @@ export function normalizeDateForDB(
 
   const d = value instanceof Date ? value : new Date(value)
   if (isNaN(d.getTime())) {
-    return typeof value === "string" ? value : null // Pass-through invalid strings (validator will catch them)
+    return null
   }
 
   switch (format) {

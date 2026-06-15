@@ -134,6 +134,7 @@ export function compileField(
             case "number":  castType = "DECIMAL";  break
             case "boolean": castType = "SIGNED";   break
             case "date":    castType = "DATETIME"; break
+            case "uuid":    castType = "CHAR";     break
           }
           break
         case "sqlite":

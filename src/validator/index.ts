@@ -1,5 +1,6 @@
 import type { FieldSchema, ValidationError, JsonLogicNode, SortRule, PaginationRule } from "../types.js"
 import type { OperatorRegistry } from "../registry/index.js"
+import type { Dialect } from "../dialects/interface.js"
 import { validateField } from "./field-validator.js"
 import { checkDepth } from "./depth-validator.js"
 
@@ -8,6 +9,7 @@ const LOGICAL_OPS = new Set(["and", "or", "!"])
 export type ValidatorOptions = {
   maxDepth: number
   sortEnabled?: boolean
+  dialect?: Dialect
 }
 
 export function validate(
@@ -23,7 +25,7 @@ export function validate(
   checkDepth(node, options.maxDepth, "", errors)
   if (errors.length > 0) return errors
 
-  traverseAndValidate(node, schema, registry, "", errors)
+  traverseAndValidate(node, schema, registry, "", errors, options)
 
   if (sort && sort.length > 0) {
     if (!options.sortEnabled) {
@@ -100,7 +102,8 @@ function traverseAndValidate(
   schema: FieldSchema,
   registry: OperatorRegistry,
   path: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  options: ValidatorOptions
 ): void {
   if (node === null || typeof node !== "object" || Array.isArray(node)) {
     errors.push({ path, message: "Expected a JSON Logic object", code: "INVALID_STRUCTURE" })
@@ -127,7 +130,7 @@ function traverseAndValidate(
       errors.push({ path, message: `"!" requires exactly one condition`, code: "INVALID_STRUCTURE" })
       return
     }
-    traverseAndValidate(child, schema, registry, `${path}!`, errors)
+    traverseAndValidate(child, schema, registry, `${path}!`, errors, options)
     return
   }
 
@@ -141,10 +144,10 @@ function traverseAndValidate(
       return
     }
     ;(args as unknown[]).forEach((child, i) => {
-      traverseAndValidate(child, schema, registry, `${path}${op}[${i}]`, errors)
+      traverseAndValidate(child, schema, registry, `${path}${op}[${i}]`, errors, options)
     })
     return
   }
 
-  validateField(op, args, schema, registry, path, errors)
+  validateField(op, args, schema, registry, path, errors, options)
 }
