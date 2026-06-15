@@ -1,0 +1,21 @@
+datasource db {
+  provider = "postgresql"
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id         Int       @id @default(autoincrement())
+  name       String
+  age        Int
+  status     String
+  user_email String    @map("user_email")
+  deleted_at DateTime? @map("deleted_at")
+  is_active  Boolean   @default(true) @map("is_active")
+  user_uuid  String    @default(dbgenerated("gen_random_uuid()")) @map("user_uuid")
+  tags       String[]  @default([])
+
+  @@map("users")
+}
