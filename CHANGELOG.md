@@ -1,3 +1,15 @@
+# [1.2.0](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.1.0...v1.2.0) (2026-06-15)
+
+
+### Bug Fixes
+
+* remove duplicate OPERATOR_LABELS declaration to resolve HTML script syntax error ([68bf050](https://github.com/Nam088/json-logic-to-sql-v2/commit/68bf0507909035c606070d97e0874eb4f75ad90c))
+
+
+### Features
+
+* implement nested recursive query builder supporting AND/OR groups in UI ([f89eb8c](https://github.com/Nam088/json-logic-to-sql-v2/commit/f89eb8ca3163f4ccd603e20bb0a58a115488fbdc))
+
 # [1.1.0](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.0.1...v1.1.0) (2026-06-15)
 
 
