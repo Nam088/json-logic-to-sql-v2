@@ -178,7 +178,7 @@ export type FieldRefNode = {
 
 export type ComparisonNode = LeafNodeBase & {
   type: "comparison"
-  operator: "==" | "!=" | ">" | ">=" | "<" | "<="
+  operator: "==" | "===" | "!=" | "!==" | ">" | ">=" | "<" | "<="
   field: string
   columnName: string
   value: Primitive | FieldRefNode

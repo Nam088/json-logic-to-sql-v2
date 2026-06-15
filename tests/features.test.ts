@@ -538,4 +538,30 @@ describe("New Features Suite", () => {
       }
     })
   })
+
+  describe("Strict Comparison Operators (===, !==)", () => {
+    const strictSchema: FieldSchema = {
+      vip: { type: "boolean", operators: ["===", "!=="] },
+    }
+    const converter = createConverter(strictSchema, { dialect: "postgres" })
+
+    it("passes and compiles === to =", () => {
+      const result = converter.toSQL({ "===": [{ var: "vip" }, true] })
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.value.sql).toBe('WHERE "vip" = $1')
+        expect(result.value.params).toEqual([true])
+      }
+    })
+
+    it("passes and compiles !== to !=", () => {
+      const result = converter.toSQL({ "!==": [{ var: "vip" }, false] })
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.value.sql).toBe('WHERE "vip" != $1')
+        expect(result.value.params).toEqual([false])
+      }
+    })
+  })
 })
+

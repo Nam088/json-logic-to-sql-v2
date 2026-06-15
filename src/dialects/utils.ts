@@ -164,7 +164,11 @@ export function compileCommonNode(
       return `NOT (${ctx.compileNode(node.child)})`
 
     case "comparison": {
-      const op = node.operator === "==" ? "=" : node.operator
+      const op = (node.operator === "==" || node.operator === "===")
+        ? "="
+        : (node.operator === "!=" || node.operator === "!==")
+          ? "!="
+          : node.operator
       const val = node.value
       if (typeof val === "object" && val !== null && "type" in val && val.type === "field") {
         const targetCol = compileField(val as any, ctx.dialect)

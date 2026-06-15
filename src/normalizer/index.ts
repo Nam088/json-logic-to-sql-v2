@@ -45,12 +45,14 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
       return { type: "not", child: normalize(Array.isArray(args) ? (args as unknown[])[0] : args, schema) }
 
     case "==":
+    case "===":
     case "!=":
+    case "!==":
     case ">":
     case ">=":
     case "<":
     case "<=": {
-      const [varNode, rightVal] = args as [{ var: string }, unknown]
+      const [varNode, rightVal] = (args as any) as [{ var: string }, unknown]
       const fieldName = varNode.var
 
       let value: Primitive | import("../types.js").FieldRefNode
@@ -74,7 +76,7 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
 
       return {
         type: "comparison",
-        operator: op as "==" | "!=" | ">" | ">=" | "<" | "<=",
+        operator: op as "==" | "===" | "!=" | "!==" | ">" | ">=" | "<" | "<=",
         field: fieldName,
         ...resolveRef(fieldName, schema),
         value,

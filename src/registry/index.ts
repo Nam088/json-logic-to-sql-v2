@@ -21,7 +21,9 @@ export type OperatorDef = {
 
 const builtIn: Record<string, OperatorDef> = {
   "==": { allowedTypes: ["any"], arity: "binary" },
+  "===": { allowedTypes: ["any"], arity: "binary" },
   "!=": { allowedTypes: ["any"], arity: "binary" },
+  "!==": { allowedTypes: ["any"], arity: "binary" },
   ">": { allowedTypes: ["number", "date"], arity: "binary" },
   ">=": { allowedTypes: ["number", "date"], arity: "binary" },
   "<": { allowedTypes: ["number", "date"], arity: "binary" },
