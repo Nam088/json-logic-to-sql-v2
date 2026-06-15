@@ -1,3 +1,18 @@
+# [1.1.0](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.0.1...v1.1.0) (2026-06-15)
+
+
+### Bug Fixes
+
+* resolve typescript type errors in sqlite tests and css warning in index.html ([a02a8a3](https://github.com/Nam088/json-logic-to-sql-v2/commit/a02a8a3dde41a6c804e19990b3b08afe331bc92d))
+
+
+### Features
+
+* add express API demo and frontend query builder interface ([e5a2c9e](https://github.com/Nam088/json-logic-to-sql-v2/commit/e5a2c9e183a751d7c517552bcf763a4059a444c0))
+* add support for strict comparison operators === and !== ([37c8649](https://github.com/Nam088/json-logic-to-sql-v2/commit/37c864991581fd12a0c8885094510190ef6bd5cd))
+* add transformParam to Dialect and support native boolean-to-integer conversion for SQLite ([f0ce2cb](https://github.com/Nam088/json-logic-to-sql-v2/commit/f0ce2cb369a564d1a42974d1fca562e04a3a52e9))
+* expand express schema with JSON metadata fields and update UI results table columns ([1b3bace](https://github.com/Nam088/json-logic-to-sql-v2/commit/1b3bace8c8a16b540f8ec0645ae96c2d05e9ef53))
+
 ## [1.0.1](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.0.0...v1.0.1) (2026-06-15)
 
 
