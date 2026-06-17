@@ -1,6 +1,7 @@
 import { validate } from "./validator/index.js"
 import { normalize } from "./normalizer/index.js"
 import { compile } from "./compiler/index.js"
+import { flattenSchema } from "./utils/schema.js"
 import { OperatorRegistry, type OperatorDef } from "./registry/index.js"
 import { postgresDialect, postgresNamedDialect, postgresAnonymousDialect } from "./dialects/postgres.js"
 import { mysqlDialect, mysqlNamedDialect } from "./dialects/mysql.js"
@@ -104,10 +105,21 @@ export type Converter = {
  * // Send publicSchema to the frontend — no DB column names or server logic exposed
  */
 export function toPublicSchema(schema: FieldSchema): FieldSchema {
+  function cleanDef(def: any): any {
+    const { internal: _, columnName: __, validate: ___, properties, ...pub } = def
+    if (properties) {
+      const cleanProps: Record<string, any> = {}
+      for (const [k, v] of Object.entries(properties)) {
+        cleanProps[k] = cleanDef(v)
+      }
+      pub.properties = cleanProps
+    }
+    return pub
+  }
+
   const result: FieldSchema = {}
   for (const [key, def] of Object.entries(schema)) {
-    const { internal: _, columnName: __, validate: ___, ...pub } = def
-    result[key] = pub
+    result[key] = cleanDef(def)
   }
   return result
 }
@@ -134,6 +146,8 @@ export function toPublicSchema(schema: FieldSchema): FieldSchema {
  * }
  */
 export function createConverter(schema: FieldSchema, options: ConverterOptions = {}): Converter {
+  const flatSchema = flattenSchema(schema)
+
   const {
     dialect: dialectOption = "postgres",
     maxDepth = 30,
@@ -192,15 +206,15 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
         }
       }
 
-      const errors: ValidationError[] = validate(rule, schema, registry, { maxDepth, sortEnabled }, sort, pag)
+      const errors: ValidationError[] = validate(rule, flatSchema, registry, { maxDepth, sortEnabled, dialect }, sort, pag)
 
       if (errors.length > 0) {
         return { ok: false, errors }
       }
 
       try {
-        const ast = normalize(rule, schema)
-        const query = compile(ast, dialect, sort, schema, prefix, pag, registry)
+        const ast = normalize(rule, flatSchema)
+        const query = compile(ast, dialect, sort, flatSchema, prefix, pag, registry)
         return { ok: true, value: query }
       } catch (err) {
         return {

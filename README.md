@@ -140,6 +140,57 @@ const schema: FieldSchema = {
 }
 ```
 
+### Hierarchical / Nested Schema Support
+
+You can define hierarchical schema fields using the `properties` block. Nested properties automatically inherit the parent's database `columnName` (or use parent key) and accumulate JSON paths.
+
+```typescript
+const schema: FieldSchema = {
+  user: {
+    columnName: "user_data",
+    properties: {
+      profile: {
+        properties: {
+          age: {
+            type: "number",
+            operators: [">="],
+          }
+        }
+      }
+    }
+  }
+}
+
+// Logical field name for querying: "user.profile.age"
+// Maps to DB column: user_data
+// Maps to JSON path: ["profile", "age"]
+```
+
+### Search Pattern Length Limit
+
+For database query performance and DoS protection, all string search operators (`contains`, `not_contains`, `startsWith`, `endsWith`, `like`, `ilike`) enforce limits on search pattern lengths:
+- If `constraints.maxLength` is defined in the schema, it is used as the length limit.
+- Otherwise, it falls back to a safe default maximum of `512` characters.
+Patterns exceeding this limit return a `VALUE_LENGTH_INVALID` validation error.
+
+### Custom Operator Arity Verification
+
+Custom operators can specify explicit constraints on the number of arguments they receive using `minArity` and `maxArity` parameters in `OperatorDef`:
+
+```typescript
+const converter = createConverter(schema, {
+  operators: {
+    match_custom: {
+      allowedTypes: ["string"],
+      arity: "binary",
+      minArity: 2,
+      maxArity: 3,
+      compile: (ctx, node) => ...
+    }
+  }
+})
+```
+
 ---
 
 ## Dialects & Parameter Styles
@@ -151,7 +202,7 @@ The library provides built-in dialects, selected using the `dialect` option in `
 | `"postgres"` (default) | `"column"`     | Positional (`$1`, `$2`)   | Native arrays, JSON query support               |
 | `"postgres-named"`     | `"column"`     | Named (`:age`, `:status`) | Returns `namedParams` key-value pairs           |
 | `"postgres-anonymous"` | `"column"`     | Anonymous (`?`)           | For drivers requiring anonymous placeholders    |
-| `"mysql"`              | `` `column` `` | Positional (`?`)          | Emulates `ILIKE`, implements JSON array helpers |
+| `"mysql"`              | `` `column` `` | Positional (`?`)          | Emulates `ILIKE`, implements JSON array helpers (Note: `has_any` requires MySQL 8.0.17+ due to `JSON_OVERLAPS`) |
 | `"mysql-named"`        | `` `column` `` | Named (`:param`)          | Return `namedParams` key-value pairs            |
 | `"sqlite"`             | `"column"`     | Positional (`?`)          | Safe standard SQL dialect                       |
 | `"sqlite-named"`       | `"column"`     | Named (`:param`)          | Returns `namedParams` key-value pairs           |

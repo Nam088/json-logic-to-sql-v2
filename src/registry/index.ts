@@ -11,9 +11,13 @@ export type OperatorDef = {
   allowedTypes: (FieldType | "any")[]
   /** Arity of the operator: `"unary"` (no value), `"binary"` (one value), `"variadic"` (one or more values). */
   arity: OperatorArity
+  /** Minimum number of arguments expected by the operator (inclusive). */
+  minArity?: number
+  /** Maximum number of arguments expected by the operator (inclusive). */
+  maxArity?: number
   /** Custom SQL compilation function. Called during the compile phase to produce a SQL fragment.
    * Must use `ctx.addParam()` to safely parameterize values — never interpolate raw values. */
-  compile?: (ctx: CompileContext, node: CustomOpNode) => string
+  compile?: (ctx: CompileContext, node: CustomOpNode, col: string) => string
   /** Custom validation function. Called during the validation phase.
    * Return `true` to pass, `false` for a generic failure, or a string for a custom error message. */
   validate?: (args: unknown[]) => boolean | string

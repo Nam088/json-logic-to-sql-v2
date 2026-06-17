@@ -444,3 +444,33 @@ describe("Bug 1 — Array Operator Dialect support validation", () => {
   })
 })
 
+
+
+describe("Bug 3 — Timezone-naive datetime validation gap", () => {
+  const dateSchema: FieldSchema = {
+    created_at: { type: "date", operators: ["==", ">", "<"] },
+  }
+
+  it("rejects timezone-naive ISO datetime string", () => {
+    const errors = validate({ ">": [{ var: "created_at" }, "2026-01-15T10:00:00"] }, dateSchema, registry, opts)
+    expect(errors).toHaveLength(1)
+    expect(errors[0]?.code).toBe("VALUE_FORMAT_INVALID")
+    expect(errors[0]?.message).toContain("timezone")
+  })
+
+  it("rejects space-separated timezone-naive datetime string", () => {
+    const errors = validate({ ">": [{ var: "created_at" }, "2026-01-15 10:00:00"] }, dateSchema, registry, opts)
+    expect(errors).toHaveLength(1)
+    expect(errors[0]?.code).toBe("VALUE_FORMAT_INVALID")
+  })
+
+  it("accepts timezone-aware strings", () => {
+    expect(validate({ ">": [{ var: "created_at" }, "2026-01-15T10:00:00Z"] }, dateSchema, registry, opts)).toHaveLength(0)
+    expect(validate({ ">": [{ var: "created_at" }, "2026-01-15T10:00:00+07:00"] }, dateSchema, registry, opts)).toHaveLength(0)
+    expect(validate({ ">": [{ var: "created_at" }, "2026-01-15T10:00:00-05:00"] }, dateSchema, registry, opts)).toHaveLength(0)
+  })
+
+  it("accepts date-only strings (no time component)", () => {
+    expect(validate({ ">": [{ var: "created_at" }, "2026-01-15"] }, dateSchema, registry, opts)).toHaveLength(0)
+  })
+})

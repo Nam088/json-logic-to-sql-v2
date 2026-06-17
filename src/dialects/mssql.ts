@@ -86,22 +86,33 @@ export const mssqlDialect: Dialect = {
     let offsetSql: string | undefined = undefined
 
     if (limit !== undefined) {
-      const off = offset !== undefined ? addParam(offset, "offset") : addParam(0, "offset")
-      const lim = addParam(limit, "limit")
-      sql = `OFFSET ${off} ROWS FETCH NEXT ${lim} ROWS ONLY`
-      limitSql = `OFFSET ${off} ROWS FETCH NEXT ${lim} ROWS ONLY`
-      offsetSql = offset !== undefined ? `OFFSET ${off} ROWS` : undefined
+      if (offset !== undefined) {
+        const off = addParam(offset, "offset")
+        const lim = addParam(limit, "limit")
+        sql = `OFFSET ${off} ROWS FETCH NEXT ${lim} ROWS ONLY`
+        limitSql = `OFFSET ${off} ROWS FETCH NEXT ${lim} ROWS ONLY`
+        offsetSql = `OFFSET ${off} ROWS`
+      } else {
+        const lim = addParam(limit, "limit")
+        sql = `OFFSET 0 ROWS FETCH NEXT ${lim} ROWS ONLY`
+        limitSql = `OFFSET 0 ROWS FETCH NEXT ${lim} ROWS ONLY`
+        offsetSql = undefined
+      }
     } else if (offset !== undefined) {
       const off = addParam(offset, "offset")
       sql = `OFFSET ${off} ROWS`
       offsetSql = `OFFSET ${off} ROWS`
     }
 
-    // MSSQL requires ORDER BY before OFFSET. If the caller hasn't supplied one,
-    // we inject a no-op ORDER BY into the combined sql string.
-    // The limitSql and offsetSql are kept as pure pagination fragments.
     if (sql && !hasOrderBy) {
-      sql = `ORDER BY (SELECT NULL) ${sql}`
+      const orderByPrefix = `ORDER BY (SELECT NULL) `
+      sql = `${orderByPrefix}${sql}`
+      if (limitSql !== undefined) {
+        limitSql = `${orderByPrefix}${limitSql}`
+      }
+      if (offsetSql !== undefined) {
+        offsetSql = `${orderByPrefix}${offsetSql}`
+      }
     }
 
     return { sql, limitSql, offsetSql }

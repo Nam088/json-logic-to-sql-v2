@@ -3,6 +3,10 @@ import type { AstNode } from "../types.js"
 import { escapeLikePosix, compileCommonNode, compileField, compileStandardPagination } from "./utils.js"
 import { normalizeDateForDB } from "../utils/date.js"
 
+/**
+ * Dialect for MySQL.
+ * NOTE: Array operations like "has_any" compile to `JSON_OVERLAPS` which requires MySQL 8.0.17+.
+ */
 export const mysqlDialect: Dialect = {
   name: "mysql",
   paramStyle: "anonymous",

@@ -70,6 +70,7 @@ export interface FieldDef {
   internal?: InternalConfig
   config?: FieldConfig
   validate?: (value: unknown) => boolean | string
+  properties?: Record<string, FieldDef>
   [key: string]: any // Allows arbitrary custom properties on FieldDef itself
 }
 

@@ -265,10 +265,11 @@ describe("New Features Suite", () => {
       expect(result.value.sql).toBe('WHERE "name" = ?')
     })
 
-    it("throws compilation error on array operation (not supported by SQLite)", () => {
+    it("rejects array operation via validation (not supported by SQLite)", () => {
       const result = converter.toSQL({ has_any: [{ var: "tags" }, ["admin"]] })
       expect(result.ok).toBe(false)
       if (result.ok) return
+      expect(result.errors[0]?.code).toBe("OPERATOR_NOT_ALLOWED")
       expect(result.errors[0]?.message).toContain("not supported by SQLite dialect")
     })
   })
@@ -480,11 +481,12 @@ describe("New Features Suite", () => {
       }
     })
 
-    it("throws compilation error on array operation (not supported by MSSQL)", () => {
+    it("rejects array operation via validation (not supported by MSSQL)", () => {
       const converter = createConverter(schema, { dialect: "mssql" })
       const result = converter.toSQL({ has_any: [{ var: "tags" }, ["admin"]] })
       expect(result.ok).toBe(false)
       if (!result.ok) {
+        expect(result.errors[0]?.code).toBe("OPERATOR_NOT_ALLOWED")
         expect(result.errors[0]?.message).toContain("not supported by MSSQL dialect")
       }
     })
@@ -495,12 +497,12 @@ describe("New Features Suite", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
 
-      // sql must contain ORDER BY (SELECT NULL) but limitSql should not!
-      expect(result.value.sql).toBe("WHERE [name] = ? ORDER BY (SELECT NULL) OFFSET ? ROWS FETCH NEXT ? ROWS ONLY")
-      expect(result.value.limitSql).toBe("OFFSET ? ROWS FETCH NEXT ? ROWS ONLY")
+      // sql must contain ORDER BY (SELECT NULL) and limitSql should as well!
+      expect(result.value.sql).toBe("WHERE [name] = ? ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY")
+      expect(result.value.limitSql).toBe("ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT ? ROWS ONLY")
       expect(result.value.offsetSql).toBeUndefined()
-      // both offset (default 0) and limit should be in params
-      expect(result.value.params).toEqual(["Alice", 0, 10])
+      // offset is not parameterized when undefined (defaults to literal 0)
+      expect(result.value.params).toEqual(["Alice", 10])
 
       // With named parameters:
       const namedConverter = createConverter(schema, { dialect: "mssql-named" })
@@ -509,22 +511,23 @@ describe("New Features Suite", () => {
       if (!namedResult.ok) return
 
       expect(namedResult.value.sql).toBe("WHERE [name] = @name_1 ORDER BY (SELECT NULL) OFFSET @offset_2 ROWS FETCH NEXT @limit_3 ROWS ONLY")
-      expect(namedResult.value.limitSql).toBe("OFFSET @offset_2 ROWS FETCH NEXT @limit_3 ROWS ONLY")
-      expect(namedResult.value.offsetSql).toBe("OFFSET @offset_2 ROWS")
+      expect(namedResult.value.limitSql).toBe("ORDER BY (SELECT NULL) OFFSET @offset_2 ROWS FETCH NEXT @limit_3 ROWS ONLY")
+      expect(namedResult.value.offsetSql).toBe("ORDER BY (SELECT NULL) OFFSET @offset_2 ROWS")
       expect(namedResult.value.namedParams).toEqual({
         name_1: "Alice",
         offset_2: 5,
         limit_3: 10,
       })
 
-      // When offset is undefined, it should parameterize 0:
+      // When offset is undefined, it should not parameterize 0:
       const namedResultNoOffset = namedConverter.toSQL({ "==": [{ var: "name" }, "Alice"] }, undefined, { limit: 10 })
       expect(namedResultNoOffset.ok).toBe(true)
       if (!namedResultNoOffset.ok) return
+      expect(namedResultNoOffset.value.sql).toBe("WHERE [name] = @name_1 ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT @limit_2 ROWS ONLY")
+      expect(namedResultNoOffset.value.limitSql).toBe("ORDER BY (SELECT NULL) OFFSET 0 ROWS FETCH NEXT @limit_2 ROWS ONLY")
       expect(namedResultNoOffset.value.namedParams).toEqual({
         name_1: "Alice",
-        offset_2: 0,
-        limit_3: 10,
+        limit_2: 10,
       })
     })
   })

@@ -4,6 +4,7 @@ import { postgresDialect } from "../src/dialects/postgres.js"
 import { sqliteDialect } from "../src/dialects/sqlite.js"
 import type { FieldSchema } from "../src/types.js"
 import { normalizeDateForDB } from "../src/utils/date.js"
+import { compile } from "../src/compiler/index.js"
 
 const schema: FieldSchema = {
   created_at: {
@@ -140,6 +141,20 @@ describe("DateTime Normalization TDD", () => {
 
       // Date only (should be accepted - V8 parses as UTC)
       expect(normalizeDateForDB("2026-01-15", "mysql")).toBe("2026-01-15 00:00:00")
+    })
+
+    it("throws a compilation error when transformParam returns null for non-null input", () => {
+      const ast = {
+        type: "comparison" as const,
+        operator: "==" as const,
+        field: "created_at",
+        columnName: "created_at",
+        value: "not-a-valid-date",
+        fieldType: "date" as const,
+      }
+      expect(() => {
+        compile(ast, postgresDialect, undefined, schema)
+      }).toThrow("Failed to normalize value for field type date: not-a-valid-date")
     })
   })
 })
