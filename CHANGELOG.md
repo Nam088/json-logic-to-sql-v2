@@ -1,3 +1,10 @@
+## [1.4.1](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.4.0...v1.4.1) (2026-06-17)
+
+
+### Bug Fixes
+
+* resolve nested JSONB array operations type casting on Postgres ([faa0dd0](https://github.com/Nam088/json-logic-to-sql-v2/commit/faa0dd073348daf7b66add13385489a2001573a9))
+
 # [1.4.0](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.3.2...v1.4.0) (2026-06-17)
 
 
