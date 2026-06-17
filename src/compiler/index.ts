@@ -1,6 +1,7 @@
 import type { AstNode, Query, Primitive, SortRule, FieldSchema, PaginationRule, FieldType, OrderField } from "../types.js"
 import type { Dialect, CompileContext } from "../dialects/interface.js"
 import type { OperatorRegistry } from "../registry/index.js"
+import { compileField } from "../dialects/utils.js"
 
 export function compile(
   ast: AstNode,
@@ -53,9 +54,20 @@ export function compile(
       const tablePrefix = def?.internal?.alias ?? def?.internal?.table
       const dir = direction.toUpperCase() as "ASC" | "DESC"
       orderFields.push({ column: colName, direction: dir })
-      const quotedCol = tablePrefix
-        ? `${dialect.quoteIdentifier(tablePrefix)}.${dialect.quoteIdentifier(colName)}`
-        : dialect.quoteIdentifier(colName)
+      const fieldObj: { columnName: string; tableName?: string; jsonPath?: string[]; fieldType?: FieldType } = {
+        columnName: colName,
+      }
+      if (tablePrefix !== undefined) {
+        fieldObj.tableName = tablePrefix
+      }
+      if (def?.jsonPath !== undefined) {
+        fieldObj.jsonPath = def.jsonPath
+      }
+      if (def?.type !== undefined) {
+        fieldObj.fieldType = def.type
+      }
+
+      const quotedCol = compileField(fieldObj, dialect)
       return `${quotedCol} ${dir}`
     })
     sortSql = `ORDER BY ${orderCols.join(", ")}`

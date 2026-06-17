@@ -13,6 +13,7 @@ describe("Hierarchical / Nested Schema Support", () => {
               type: "number",
               operators: [">=", "=="],
               constraints: { min: 0, max: 150 },
+              sortable: true,
             },
             name: {
               type: "string",
@@ -85,5 +86,20 @@ describe("Hierarchical / Nested Schema Support", () => {
     expect(secret).not.toHaveProperty("validate")
     expect(secret.type).toBe("string")
     expect(secret.operators).toEqual(["=="])
+  })
+
+  it("compiles ORDER BY correctly for nested JSON fields", () => {
+    const converter = createConverter(schema, { dialect: "postgres", sort: true })
+    const result = converter.toSQL(
+      { "==": [{ var: "direct_field" }, "hello"] },
+      [{ field: "user.profile.age", direction: "desc" }]
+    )
+
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    expect(result.value.sql).toBe(
+      `WHERE "direct_field" = $1 ORDER BY CAST("user_data"->'profile'->>'age' AS numeric) DESC`
+    )
   })
 })
