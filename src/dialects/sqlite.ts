@@ -34,27 +34,27 @@ export const sqliteDialect: Dialect = {
         switch (node.operator) {
           case "contains": {
             const p = ctx.addParam(`%${escapeLikePosix(node.value)}%`, node.field)
-            return `${col} LIKE ${p}`
+            return `${col} LIKE ${p} ESCAPE '\\'`
           }
           case "not_contains": {
             const p = ctx.addParam(`%${escapeLikePosix(node.value)}%`, node.field)
-            return `${col} NOT LIKE ${p}`
+            return `${col} NOT LIKE ${p} ESCAPE '\\'`
           }
           case "startsWith": {
             const p = ctx.addParam(`${escapeLikePosix(node.value)}%`, node.field)
-            return `${col} LIKE ${p}`
+            return `${col} LIKE ${p} ESCAPE '\\'`
           }
           case "endsWith": {
             const p = ctx.addParam(`%${escapeLikePosix(node.value)}`, node.field)
-            return `${col} LIKE ${p}`
+            return `${col} LIKE ${p} ESCAPE '\\'`
           }
           case "like": {
             const p = ctx.addParam(node.value, node.field)
-            return `${col} LIKE ${p}`
+            return `${col} LIKE ${p} ESCAPE '\\'`
           }
           case "ilike": {
             const p = ctx.addParam(node.value, node.field)
-            return `LOWER(${col}) LIKE LOWER(${p})`
+            return `LOWER(${col}) LIKE LOWER(${p}) ESCAPE '\\'`
           }
           default:
             throw new Error(`Unsupported operator for like node: ${(node as any).operator}`)

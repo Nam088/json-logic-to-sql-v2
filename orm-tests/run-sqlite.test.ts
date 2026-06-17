@@ -35,6 +35,7 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
     insert.run("Charlie", 35, 3000, "2026-05-01T10:00:00.000Z", "active", 0, 30, 40, "pending")
     insert.run("David", 20, 1000, "2026-04-01T10:00:00.000Z", "active", 1, 15, 25, "active")
     insert.run("Eve", 40, 4000, "2026-07-01T10:00:00.000Z", "inactive", 0, 45, 50, "inactive")
+    insert.run("Frank", 28, 1800, "2026-05-01T10:00:00.000Z", "act_ive", 1, 20, 30, "inactive")
   })
 
   const sqliteSchema: FieldSchema = {
@@ -44,8 +45,8 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
     created_at: { type: "date", operators: ["==", ">", "<", "between"], sortable: true },
     status: {
       type: "string",
-      operators: ["==", "in", "not_in"],
-      constraints: { allowedValues: ["active", "inactive", "pending"] },
+      operators: ["==", "in", "not_in", "contains"],
+      constraints: { allowedValues: ["active", "inactive", "pending", "act_ive"] },
     },
     vip: { type: "boolean", operators: ["=="] },
     min_age: { type: "number", operators: ["==", "<", ">"] },
@@ -163,10 +164,10 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
     const stmt = db.prepare(`SELECT * FROM test_users ${sql}`)
     const rows = stmt.all() as any[]
     
-    // Alice (25 between 20 and 30), Charlie (35 between 30 and 40), David (20 between 15 and 25)
-    expect(rows).toHaveLength(3)
+    // Alice (25 between 20 and 30), Charlie (35 between 30 and 40), David (20 between 15 and 25), Frank (28 between 20 and 30)
+    expect(rows).toHaveLength(4)
     const names = rows.map(r => r.name).sort()
-    expect(names).toEqual(["Alice", "Charlie", "David"])
+    expect(names).toEqual(["Alice", "Charlie", "David", "Frank"])
   })
 
   it("compiles and executes SQLite in operator with variables", () => {
@@ -192,5 +193,27 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
     expect(rows).toHaveLength(3)
     const names = rows.map(r => r.name).sort()
     expect(names).toEqual(["Bob", "David", "Eve"])
+  })
+
+  it("compiles and executes SQLite like operator with escape characters correctly", () => {
+    const converter = createConverter(sqliteSchema, { dialect: "sqlite" })
+    
+    // Tìm kiếm status chứa "act_" (có dấu gạch dưới thật)
+    const logic = {
+      contains: [{ var: "status" }, "act_"]
+    }
+    
+    const result = converter.toSQL(logic)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    
+    const { sql, params } = result.value
+    
+    const stmt = db.prepare(`SELECT * FROM test_users ${sql}`)
+    const rows = stmt.all(...(params as any[])) as any[]
+    
+    // Kỳ vọng chỉ tìm thấy Frank ("act_ive"), KHÔNG tìm thấy Alice hay David ("active")
+    const names = rows.map(r => r.name)
+    expect(names).toEqual(["Frank"])
   })
 })

@@ -354,7 +354,9 @@ function validateValue(
     return
   }
 
+  const isStringSearch = ["contains", "not_contains", "startsWith", "endsWith", "like", "ilike"].includes(op)
   if (
+    !isStringSearch &&
     c.allowedValues &&
     !c.allowedValues.some(
       (av) =>
