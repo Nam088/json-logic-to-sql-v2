@@ -93,7 +93,7 @@ export class OperatorRegistry {
 
   constructor(custom: Record<string, OperatorDef> = {}) {
     for (const name of Object.keys(custom)) {
-      if (name in builtIn) {
+      if (Object.prototype.hasOwnProperty.call(builtIn, name)) {
         throw new Error(
           `Cannot register custom operator "${name}": it conflicts with a built-in operator. ` +
           `Rename your operator, or use registry.forceRegister() to intentionally override it.`
@@ -118,7 +118,7 @@ export class OperatorRegistry {
    * Throws if `name` matches a built-in operator — use `forceRegister()` to override intentionally.
    */
   register(name: string, def: OperatorDef): void {
-    if (name in builtIn) {
+    if (Object.prototype.hasOwnProperty.call(builtIn, name)) {
       throw new Error(
         `Cannot register custom operator "${name}": it conflicts with a built-in operator. ` +
         `Use registry.forceRegister() to intentionally override it.`

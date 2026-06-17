@@ -42,18 +42,19 @@ describe("Execute MySQL SQL directly on MySQL DB", () => {
         created_at DATETIME NOT NULL,
         status VARCHAR(50) NOT NULL,
         roles JSON NOT NULL,
-        vip BOOLEAN NOT NULL
+        vip BOOLEAN NOT NULL,
+        metadata JSON NULL
       );
     `)
 
     await connection.query(`
-      INSERT INTO test_users (name, age, salary, created_at, status, roles, vip) VALUES
-      ('Alice', 25, 1500, '2026-06-01 10:00:00', 'active', '["admin", "user"]', true),
-      ('Bob', 30, 2000, '2026-05-01 10:00:00', 'pending', '["user"]', true),
-      ('Charlie', 35, 3000, '2026-05-01 10:00:00', 'active', '["user"]', false),
-      ('David', 20, 1000, '2026-04-01 10:00:00', 'active', '["user"]', true),
-      ('Eve', 40, 4000, '2026-07-01 10:00:00', 'inactive', '["guest"]', false),
-      ('Frank', 28, 1800, '2026-05-01 10:00:00', 'user', '["user"]', false);
+      INSERT INTO test_users (name, age, salary, created_at, status, roles, vip, metadata) VALUES
+      ('Alice', 25, 1500, '2026-06-01 10:00:00', 'active', '["admin", "user"]', true, '{"profile":{"age":25,"vip":true,"email":"alice@company.com"},"settings":{"theme":"dark"}}'),
+      ('Bob', 30, 2000, '2026-05-01 10:00:00', 'pending', '["user"]', true, '{"profile":{"age":17,"vip":false}}'),
+      ('Charlie', 35, 3000, '2026-05-01 10:00:00', 'active', '["user"]', false, '{"profile":{"age":30,"vip":true}}'),
+      ('David', 20, 1000, '2026-04-01 10:00:00', 'active', '["user"]', true, '{"profile":{"age":20,"vip":true}}'),
+      ('Eve', 40, 4000, '2026-07-01 10:00:00', 'inactive', '["guest"]', false, '{"profile":{"age":40,"vip":false}}'),
+      ('Frank', 28, 1800, '2026-05-01 10:00:00', 'user', '["user"]', false, NULL);
     `)
   })
 
@@ -76,6 +77,11 @@ describe("Execute MySQL SQL directly on MySQL DB", () => {
     },
     roles: { type: "array", operators: ["has_any", "has_all"] },
     vip: { type: "boolean", operators: ["=="] },
+    "user.profile": {
+      columnName: "metadata",
+      jsonPath: ["profile"],
+      operators: ["json_has_key", "json_has_any_keys"],
+    },
   }
 
   it("compiles and executes MySQL positional (?) dialect queries", async () => {
@@ -213,5 +219,27 @@ describe("Execute MySQL SQL directly on MySQL DB", () => {
     expect(rows).toHaveLength(2)
     const names = rows.map((r: any) => r.name).sort()
     expect(names).toEqual(["Eve", "Frank"])
+  })
+
+  it("compiles and executes json_has_key on MySQL", async () => {
+    const converter = createConverter(mysqlSchema, { dialect: "mysql" })
+    
+    // Kiểm tra xem metadata.profile có chứa key "email" không
+    const logic = {
+      json_has_key: [{ var: "user.profile" }, "email"]
+    }
+    
+    const result = converter.toSQL(logic)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    
+    const { sql, params } = result.value
+    console.log("MYSQL JSON_HAS_KEY SQL:", sql)
+    
+    const [rows] = (await connection.query(`SELECT * FROM test_users ${sql}`, params)) as any[]
+    
+    // Chỉ có Alice có profile.email
+    expect(rows).toHaveLength(1)
+    expect(rows[0].name).toBe("Alice")
   })
 })

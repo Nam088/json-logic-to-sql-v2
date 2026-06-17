@@ -102,6 +102,19 @@ describe("Custom Operators Support", () => {
       expect(result.errors[0].code).toBe("VALUE_FORMAT_INVALID")
       expect(result.errors[0].message).toBe("Modulo divisor must be a positive number")
     })
+
+    it("allows custom operators with prototype method names (e.g. toString)", () => {
+      expect(() => {
+        createConverter(schema, {
+          operators: {
+            toString: defineOperator({
+              allowedTypes: ["string"],
+              arity: "unary",
+            }),
+          },
+        })
+      }).not.toThrow()
+    })
   })
 
   describe("Compilation", () => {
