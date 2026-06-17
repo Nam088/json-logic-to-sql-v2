@@ -67,8 +67,7 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
         value = {
           type: "field",
           field: targetFieldName,
-          columnName: ref.columnName,
-          tableName: ref.tableName,
+          ...ref,
         }
       } else {
         value = rightVal as Primitive
