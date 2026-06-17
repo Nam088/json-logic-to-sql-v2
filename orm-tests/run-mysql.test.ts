@@ -52,7 +52,8 @@ describe("Execute MySQL SQL directly on MySQL DB", () => {
       ('Bob', 30, 2000, '2026-05-01 10:00:00', 'pending', '["user"]', true),
       ('Charlie', 35, 3000, '2026-05-01 10:00:00', 'active', '["user"]', false),
       ('David', 20, 1000, '2026-04-01 10:00:00', 'active', '["user"]', true),
-      ('Eve', 40, 4000, '2026-07-01 10:00:00', 'inactive', '["guest"]', false);
+      ('Eve', 40, 4000, '2026-07-01 10:00:00', 'inactive', '["guest"]', false),
+      ('Frank', 28, 1800, '2026-05-01 10:00:00', 'user', '["user"]', false);
     `)
   })
 
@@ -184,5 +185,33 @@ describe("Execute MySQL SQL directly on MySQL DB", () => {
     // Should match David (2026-04-01)
     expect(rowsDate).toHaveLength(1)
     expect(rowsDate[0].name).toBe("David")
+  })
+
+  it("compiles and executes MySQL array operators with variables", async () => {
+    const converter = createConverter(mysqlSchema, { dialect: "mysql" })
+
+    // roles has_any ["guest", status]
+    const logic = {
+      has_any: [{ var: "roles" }, ["guest", { var: "status" }]],
+    }
+
+    const result = converter.toSQL(logic)
+    if (!result.ok) {
+      console.log("VALIDATION ERRORS:", JSON.stringify((result as any).errors, null, 2))
+    }
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { sql, params } = result.value
+    // Should result in: WHERE JSON_OVERLAPS(`roles`, JSON_ARRAY(?, `status`))
+    expect(sql).toBe("WHERE JSON_OVERLAPS(`roles`, JSON_ARRAY(?, `status`))")
+    expect(params).toEqual(["guest"])
+
+    const [rows] = (await connection.query(`SELECT * FROM test_users ${sql}`, params)) as any[]
+    
+    // Eve (roles ["guest"] has "guest"), Frank (roles ["user"] has status "user")
+    expect(rows).toHaveLength(2)
+    const names = rows.map((r: any) => r.name).sort()
+    expect(names).toEqual(["Eve", "Frank"])
   })
 })

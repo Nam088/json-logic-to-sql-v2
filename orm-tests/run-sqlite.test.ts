@@ -18,20 +18,23 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
         salary INTEGER NOT NULL,
         created_at TEXT NOT NULL,
         status TEXT NOT NULL,
-        vip INTEGER NOT NULL
+        vip INTEGER NOT NULL,
+        min_age INTEGER,
+        max_age INTEGER,
+        other_status TEXT
       );
     `)
 
     const insert = db.prepare(`
-      INSERT INTO test_users (name, age, salary, created_at, status, vip)
-      VALUES (?, ?, ?, ?, ?, ?)
+      INSERT INTO test_users (name, age, salary, created_at, status, vip, min_age, max_age, other_status)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
-    insert.run("Alice", 25, 1500, "2026-06-01T10:00:00.000Z", "active", 1)
-    insert.run("Bob", 30, 2000, "2026-05-01T10:00:00.000Z", "pending", 1)
-    insert.run("Charlie", 35, 3000, "2026-05-01T10:00:00.000Z", "active", 0)
-    insert.run("David", 20, 1000, "2026-04-01T10:00:00.000Z", "active", 1)
-    insert.run("Eve", 40, 4000, "2026-07-01T10:00:00.000Z", "inactive", 0)
+    insert.run("Alice", 25, 1500, "2026-06-01T10:00:00.000Z", "active", 1, 20, 30, "inactive")
+    insert.run("Bob", 30, 2000, "2026-05-01T10:00:00.000Z", "pending", 1, 20, 28, "active")
+    insert.run("Charlie", 35, 3000, "2026-05-01T10:00:00.000Z", "active", 0, 30, 40, "pending")
+    insert.run("David", 20, 1000, "2026-04-01T10:00:00.000Z", "active", 1, 15, 25, "active")
+    insert.run("Eve", 40, 4000, "2026-07-01T10:00:00.000Z", "inactive", 0, 45, 50, "inactive")
   })
 
   const sqliteSchema: FieldSchema = {
@@ -45,6 +48,9 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
       constraints: { allowedValues: ["active", "inactive", "pending"] },
     },
     vip: { type: "boolean", operators: ["=="] },
+    min_age: { type: "number", operators: ["==", "<", ">"] },
+    max_age: { type: "number", operators: ["==", "<", ">"] },
+    other_status: { type: "string", operators: ["=="] },
   }
 
   it("compiles and executes SQLite positional (?) dialect queries", () => {
@@ -139,5 +145,52 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
     const countStmt = db.prepare(`SELECT COUNT(*) as total FROM test_users ${filterSql}`)
     const countRows = countStmt.all(...(filterParams as any[])) as any[]
     expect(countRows[0].total).toBe(3)
+  })
+
+  it("compiles and executes SQLite between operator with variables", () => {
+    const converter = createConverter(sqliteSchema, { dialect: "sqlite" })
+    const logic = {
+      between: [{ var: "age" }, { var: "min_age" }, { var: "max_age" }]
+    }
+    const result = converter.toSQL(logic)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    
+    const { sql, params } = result.value
+    expect(sql).toBe('WHERE "age" BETWEEN "min_age" AND "max_age"')
+    expect(params).toEqual([])
+    
+    const stmt = db.prepare(`SELECT * FROM test_users ${sql}`)
+    const rows = stmt.all() as any[]
+    
+    // Alice (25 between 20 and 30), Charlie (35 between 30 and 40), David (20 between 15 and 25)
+    expect(rows).toHaveLength(3)
+    const names = rows.map(r => r.name).sort()
+    expect(names).toEqual(["Alice", "Charlie", "David"])
+  })
+
+  it("compiles and executes SQLite in operator with variables", () => {
+    const converter = createConverter(sqliteSchema, { dialect: "sqlite" })
+    // status in ["pending", other_status]
+    const logic = {
+      in: [{ var: "status" }, ["pending", { var: "other_status" }]]
+    }
+    const result = converter.toSQL(logic)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    
+    const { sql, params } = result.value
+    expect(sql).toBe('WHERE "status" IN (?, "other_status")')
+    expect(params).toEqual(["pending"])
+    
+    const stmt = db.prepare(`SELECT * FROM test_users ${sql}`)
+    const rows = stmt.all(...(params as any[])) as any[]
+    
+    // Bob: status is pending (matches "pending")
+    // David: status is active, other_status is active (matches "other_status")
+    // Eve: status is inactive, other_status is inactive (matches "other_status")
+    expect(rows).toHaveLength(3)
+    const names = rows.map(r => r.name).sort()
+    expect(names).toEqual(["Bob", "David", "Eve"])
   })
 })

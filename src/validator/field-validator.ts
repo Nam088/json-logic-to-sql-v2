@@ -279,12 +279,13 @@ export function validateField(
           })
           continue
         }
-        if (valType && targetFieldDef.type && valType !== targetFieldDef.type) {
+        const expectedElement = valType === "array" ? undefined : valType
+        if (expectedElement && targetFieldDef.type && expectedElement !== targetFieldDef.type) {
           errors.push({
             path,
             field: fieldName,
             operator: op,
-            message: `Cannot compare field "${fieldName}" (type: ${valType}) with field "${targetFieldName}" (type: ${targetFieldDef.type})`,
+            message: `Cannot compare field "${fieldName}" (type: ${expectedElement}) with field "${targetFieldName}" (type: ${targetFieldDef.type})`,
             code: "OPERATOR_TYPE_MISMATCH",
           })
         }
