@@ -580,5 +580,66 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(allowed?.[0]).toEqual({ value: "active", label: "Active", icon: "check" })
       expect(allowed?.[1]).toEqual({ value: "inactive", label: "Inactive", icon: "close" })
     })
+
+    it("compiles in operator with variables correctly", () => {
+      const converter = createConverter(customSchema, { dialect: "postgres" })
+      const result = converter.toSQL({ in: [{ var: "status" }, ["active", { var: "empty_allowed" }]] })
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.value.sql).toBe('WHERE "status" IN ($1, "empty_allowed")')
+      expect(result.value.params).toEqual(["active"])
+    })
+
+    it("compiles between operator with variables correctly", () => {
+      const converter = createConverter(extremeSchema, { dialect: "postgres" })
+      const result = converter.toSQL({
+        between: [{ var: "user.profile.age" }, { var: "id" }, 100],
+      })
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.value.sql).toBe(
+        'WHERE CAST("user_data"->\'profile\'->>\'age\' AS numeric) BETWEEN "id" AND $1'
+      )
+      expect(result.value.params).toEqual([100])
+    })
+
+    it("compiles between operator with multiple variables correctly", () => {
+      const converter = createConverter(extremeSchema, { dialect: "postgres" })
+      const result = converter.toSQL({
+        between: [{ var: "user.profile.age" }, { var: "id" }, { var: "user.profile.age" }],
+      })
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.value.sql).toBe(
+        'WHERE CAST("user_data"->\'profile\'->>\'age\' AS numeric) BETWEEN "id" AND CAST("user_data"->\'profile\'->>\'age\' AS numeric)'
+      )
+      expect(result.value.params).toEqual([])
+    })
+
+    it("compiles array operators with variables correctly in Postgres", () => {
+      const converter = createConverter(extremeSchema, { dialect: "postgres" })
+      const result = converter.toSQL({
+        has_any: [{ var: "user.profile.tags" }, ["VIP", { var: "user.id" }]],
+      })
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.value.sql).toBe(
+        'WHERE "user_data"->\'profile\'->>\'tags\' && ARRAY[$1, "user_data"->>\'id\']'
+      )
+      expect(result.value.params).toEqual(["VIP"])
+    })
+
+    it("compiles array operators with variables correctly in MySQL", () => {
+      const converter = createConverter(extremeSchema, { dialect: "mysql" })
+      const result = converter.toSQL({
+        has_any: [{ var: "user.profile.tags" }, ["VIP", { var: "user.id" }]],
+      })
+      expect(result.ok).toBe(true)
+      if (!result.ok) return
+      expect(result.value.sql).toBe(
+        'WHERE JSON_OVERLAPS(`user_data`->>\'$.\"profile\".\"tags\"\', JSON_ARRAY(?, `user_data`->>\'$.\"id\"\'))'
+      )
+      expect(result.value.params).toEqual(["VIP"])
+    })
   })
 })

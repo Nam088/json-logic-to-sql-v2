@@ -262,6 +262,9 @@ export function validateField(
 
   const isCustomOp = !!(opDef && opDef.compile)
   if (!isCustomOp) {
+    const valType =
+      fieldDef.type === "array" && fieldDef.constraints?.arrayOf ? fieldDef.constraints.arrayOf : fieldDef.type
+
     for (const val of checkValues) {
       if (isVarNode(val)) {
         const targetFieldName = val.var
@@ -276,18 +279,16 @@ export function validateField(
           })
           continue
         }
-        if (fieldDef.type && targetFieldDef.type && fieldDef.type !== targetFieldDef.type) {
+        if (valType && targetFieldDef.type && valType !== targetFieldDef.type) {
           errors.push({
             path,
             field: fieldName,
             operator: op,
-            message: `Cannot compare field "${fieldName}" (type: ${fieldDef.type}) with field "${targetFieldName}" (type: ${targetFieldDef.type})`,
+            message: `Cannot compare field "${fieldName}" (type: ${valType}) with field "${targetFieldName}" (type: ${targetFieldDef.type})`,
             code: "OPERATOR_TYPE_MISMATCH",
           })
         }
       } else {
-        const valType =
-          fieldDef.type === "array" && fieldDef.constraints?.arrayOf ? fieldDef.constraints.arrayOf : fieldDef.type
         validateValue(val, valType, fieldDef.constraints ?? {}, fieldName, op, path, errors)
 
         if (fieldDef.validate) {

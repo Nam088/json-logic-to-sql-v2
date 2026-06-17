@@ -23,9 +23,33 @@ function resolveRef(
   return result
 }
 
-function extractValues(args: unknown[]): Primitive[] {
+function extractRawValues(args: unknown[]): unknown[] {
   const values = args[1]
-  return Array.isArray(values) ? (values as Primitive[]) : (args.slice(1) as Primitive[])
+  return Array.isArray(values) ? (values as unknown[]) : (args.slice(1) as unknown[])
+}
+
+function isVarNode(node: unknown): node is { var: string } {
+  return (
+    typeof node === "object" &&
+    node !== null &&
+    "var" in node &&
+    typeof (node as { var: unknown }).var === "string"
+  )
+}
+
+function normalizeValues(values: unknown[], schema: FieldSchema): (Primitive | FieldRefNode)[] {
+  return values.map((val) => {
+    if (isVarNode(val)) {
+      const targetFieldName = val.var
+      const ref = resolveRef(targetFieldName, schema)
+      return {
+        type: "field",
+        field: targetFieldName,
+        ...ref,
+      } as FieldRefNode
+    }
+    return val as Primitive
+  })
 }
 
 export function normalize(node: unknown, schema: FieldSchema): AstNode {
@@ -91,14 +115,34 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
         negated: op === "not_in",
         field: fieldName,
         ...resolveRef(fieldName, schema),
-        values: extractValues(args as unknown[]),
+        values: normalizeValues(extractRawValues(args as unknown[]), schema),
       }
     }
 
     case "between": {
-      const [varNode, min, max] = args as [{ var: string }, Primitive, Primitive]
+      const [varNode, minVal, maxVal] = args as [{ var: string }, unknown, unknown]
       const fieldName = varNode.var
-      return { type: "between", field: fieldName, ...resolveRef(fieldName, schema), min, max }
+
+      const normalizeVal = (v: unknown): Primitive | FieldRefNode => {
+        if (isVarNode(v)) {
+          const targetFieldName = v.var
+          const ref = resolveRef(targetFieldName, schema)
+          return {
+            type: "field",
+            field: targetFieldName,
+            ...ref,
+          } as FieldRefNode
+        }
+        return v as Primitive
+      }
+
+      return {
+        type: "between",
+        field: fieldName,
+        ...resolveRef(fieldName, schema),
+        min: normalizeVal(minVal),
+        max: normalizeVal(maxVal),
+      }
     }
 
     case "contains":
@@ -135,7 +179,7 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
         operator: op as "has_any" | "has_all" | "contained_by",
         field: fieldName,
         ...resolveRef(fieldName, schema),
-        values: extractValues(args as unknown[]),
+        values: normalizeValues(extractRawValues(args as unknown[]), schema),
       }
     }
 
@@ -159,7 +203,7 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
         operator: "json_has_any_keys",
         field: fieldName,
         ...resolveRef(fieldName, schema),
-        values: extractValues(args as unknown[]),
+        values: extractRawValues(args as unknown[]) as Primitive[],
       }
     }
 

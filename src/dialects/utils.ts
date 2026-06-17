@@ -202,13 +202,28 @@ export function compileCommonNode(
     }
 
     case "in": {
-      const placeholders = node.values.map((v, i) => ctx.addParam(v, `${node.field}_${i}`, node.fieldType)).join(", ")
+      const placeholders = node.values
+        .map((v, i) => {
+          if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
+            return compileField(v as any, ctx.dialect)
+          } else {
+            return ctx.addParam(v as Primitive, `${node.field}_${i}`, node.fieldType)
+          }
+        })
+        .join(", ")
       return node.negated ? `${col} NOT IN (${placeholders})` : `${col} IN (${placeholders})`
     }
 
     case "between": {
-      const p1 = ctx.addParam(node.min, `${node.field}_min`, node.fieldType)
-      const p2 = ctx.addParam(node.max, `${node.field}_max`, node.fieldType)
+      const compileBound = (val: typeof node.min, suffix: string) => {
+        if (typeof val === "object" && val !== null && "type" in val && (val as any).type === "field") {
+          return compileField(val as any, ctx.dialect)
+        } else {
+          return ctx.addParam(val as Primitive, `${node.field}_${suffix}`, node.fieldType)
+        }
+      }
+      const p1 = compileBound(node.min, "min")
+      const p2 = compileBound(node.max, "max")
       return `${col} BETWEEN ${p1} AND ${p2}`
     }
 

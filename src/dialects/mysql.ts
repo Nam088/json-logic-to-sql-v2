@@ -1,5 +1,5 @@
 import type { Dialect, CompileContext } from "./interface.js"
-import type { AstNode } from "../types.js"
+import type { AstNode, Primitive } from "../types.js"
 import { escapeLikePosix, compileCommonNode, compileField, compileStandardPagination } from "./utils.js"
 import { normalizeDateForDB } from "../utils/date.js"
 
@@ -61,7 +61,15 @@ export const mysqlDialect: Dialect = {
       }
 
       case "array_op": {
-        const placeholders = node.values.map((v, i) => ctx.addParam(v, `${node.field}_${i}`)).join(", ")
+        const placeholders = node.values
+          .map((v, i) => {
+            if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
+              return compileField(v as any, ctx.dialect)
+            } else {
+              return ctx.addParam(v as Primitive, `${node.field}_${i}`)
+            }
+          })
+          .join(", ")
         if (node.operator === "has_any") {
           return `JSON_OVERLAPS(${col}, JSON_ARRAY(${placeholders}))`
         } else if (node.operator === "has_all") {
