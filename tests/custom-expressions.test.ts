@@ -480,7 +480,7 @@ describe("Runtime Field Mappings, OR-Expansion & SQL Expressions", () => {
           allowedTypes: ["any"],
           arity: "binary",
           validate: () => true,
-          compile: (ctx, node, col) => `${col} = SOME_FUNC(${ctx.addParam(node.values[0])})`,
+          compile: (ctx, node, col) => `${col} = SOME_FUNC(${ctx.addParam(node.values[0] as any)})`,
         },
       },
     })
