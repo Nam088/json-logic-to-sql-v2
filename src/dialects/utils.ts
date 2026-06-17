@@ -95,10 +95,14 @@ export function compileField(
       if (family === "postgres") {
         let temp = baseCol
         const pathParts = n.jsonPath!.map((part) => `'${part.replace(/'/g, "''")}'`)
-        for (let i = 0; i < pathParts.length - 1; i++) {
+        const useArrowOnly = n.fieldType === undefined
+        const limit = useArrowOnly ? pathParts.length : pathParts.length - 1
+        for (let i = 0; i < limit; i++) {
           temp += `->${pathParts[i]}`
         }
-        temp += `->>${pathParts[pathParts.length - 1]}`
+        if (!useArrowOnly) {
+          temp += `->>${pathParts[pathParts.length - 1]}`
+        }
         return temp
       }
       if (family === "mysql") {
@@ -111,7 +115,9 @@ export function compileField(
       }
       if (family === "mssql") {
         const pathStr = "$." + n.jsonPath!.map((part) => `"${part.replace(/"/g, '""')}"`).join(".")
-        return `JSON_VALUE(${baseCol}, '${pathStr.replace(/'/g, "''")}')`
+        const useQuery = n.fieldType === "array" || n.fieldType === undefined
+        const funcName = useQuery ? "JSON_QUERY" : "JSON_VALUE"
+        return `${funcName}(${baseCol}, '${pathStr.replace(/'/g, "''")}')`
       }
       return baseCol
     })()
@@ -212,7 +218,7 @@ export function compileCommonNode(
     case "custom_op": {
       const opDef = ctx.registry?.get(node.operator)
       if (opDef && opDef.compile) {
-        return opDef.compile(ctx, node)
+        return opDef.compile(ctx, node, col)
       }
       throw new Error(`Custom operator "${node.operator}" does not have a compile function`)
     }

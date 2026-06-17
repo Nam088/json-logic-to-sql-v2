@@ -17,6 +17,9 @@ export function compile(
 
   const addParam = (value: Primitive, nameHint?: string, fieldType?: FieldType): string => {
     const transformed = dialect.transformParam ? dialect.transformParam(value, fieldType) : value
+    if (value !== null && value !== undefined && transformed === null) {
+      throw new Error(`Failed to normalize value for field type ${fieldType}: ${value}`)
+    }
     params.push(transformed)
     const placeholder = dialect.formatParam(paramIndex.current, nameHint)
     if (dialect.paramStyle === "named") {

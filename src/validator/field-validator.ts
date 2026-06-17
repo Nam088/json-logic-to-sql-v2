@@ -53,6 +53,61 @@ export function validateField(
     return
   }
 
+  const opDef = registry.get(op)
+  if (opDef) {
+    if (opDef.minArity !== undefined && args.length < opDef.minArity) {
+      errors.push({
+        path,
+        operator: op,
+        message: `Operator "${op}" requires at least ${opDef.minArity} arguments`,
+        code: "INVALID_STRUCTURE",
+      })
+      return
+    }
+    if (opDef.maxArity !== undefined && args.length > opDef.maxArity) {
+      errors.push({
+        path,
+        operator: op,
+        message: `Operator "${op}" allows at most ${opDef.maxArity} arguments`,
+        code: "INVALID_STRUCTURE",
+      })
+      return
+    }
+
+    if (opDef.minArity === undefined && opDef.maxArity === undefined) {
+      if (opDef.arity === "unary" && args.length !== 1) {
+        errors.push({
+          path,
+          operator: op,
+          message: `Operator "${op}" expects exactly 1 argument`,
+          code: "INVALID_STRUCTURE",
+        })
+        return
+      }
+      if (opDef.arity === "binary" && op !== "between" && args.length !== 2) {
+        errors.push({
+          path,
+          operator: op,
+          message: `Operator "${op}" expects exactly 2 arguments`,
+          code: "INVALID_STRUCTURE",
+        })
+        return
+      }
+      if (opDef.arity === "variadic") {
+        const hasArrayArg = Array.isArray(args[1])
+        if (!hasArrayArg && args.length < 2) {
+          errors.push({
+            path,
+            operator: op,
+            message: `Operator "${op}" requires at least one value`,
+            code: "INVALID_STRUCTURE",
+          })
+          return
+        }
+      }
+    }
+  }
+
   const varNode = args[0]
   if (!isVarNode(varNode)) {
     errors.push({
@@ -67,13 +122,16 @@ export function validateField(
   const fieldName = varNode.var
   const fieldDef = schema[fieldName]
 
-  if (fieldDef && options?.dialect && (op === "has_any" || op === "has_all" || op === "contained_by")) {
+  const isArrayOp = !!(opDef && opDef.allowedTypes.includes("array") && !opDef.allowedTypes.includes("any"))
+
+  if (fieldDef && options?.dialect && isArrayOp) {
     if (options.dialect.supportsArrayOps === false) {
+      const dialectDisplayName = getDialectDisplayName(options.dialect.name)
       errors.push({
         path,
         field: fieldName,
         operator: op,
-        message: `Operator "${op}" is not supported by ${options.dialect.name} dialect`,
+        message: `Operator "${op}" is not supported by ${dialectDisplayName} dialect`,
         code: "OPERATOR_NOT_ALLOWED",
       })
       return
@@ -99,7 +157,6 @@ export function validateField(
     return
   }
 
-  const opDef = registry.get(op)
   if (opDef && fieldDef.type && !opDef.allowedTypes.includes("any") && !opDef.allowedTypes.includes(fieldDef.type)) {
     errors.push({
       path,
@@ -203,56 +260,59 @@ export function validateField(
     }
   }
 
-  for (const val of checkValues) {
-    if (isVarNode(val)) {
-      const targetFieldName = val.var
-      const targetFieldDef = schema[targetFieldName]
-      if (!targetFieldDef) {
-        errors.push({
-          path,
-          field: targetFieldName,
-          operator: op,
-          message: `Field "${targetFieldName}" is not allowed`,
-          code: "FIELD_NOT_ALLOWED",
-        })
-        continue
-      }
-      if (fieldDef.type && targetFieldDef.type && fieldDef.type !== targetFieldDef.type) {
-        errors.push({
-          path,
-          field: fieldName,
-          operator: op,
-          message: `Cannot compare field "${fieldName}" (type: ${fieldDef.type}) with field "${targetFieldName}" (type: ${targetFieldDef.type})`,
-          code: "OPERATOR_TYPE_MISMATCH",
-        })
-      }
-    } else {
-      const valType =
-        fieldDef.type === "array" && fieldDef.constraints?.arrayOf ? fieldDef.constraints.arrayOf : fieldDef.type
-      validateValue(val, valType, fieldDef.constraints ?? {}, fieldName, op, path, errors)
-
-      if (fieldDef.validate) {
-        try {
-          const res = fieldDef.validate(val)
-          if (res === false) {
-            errors.push({
-              path,
-              field: fieldName,
-              operator: op,
-              message: `Value "${val}" failed custom validation`,
-              code: "VALUE_FORMAT_INVALID",
-            })
-          } else if (typeof res === "string") {
-            errors.push({ path, field: fieldName, operator: op, message: res, code: "VALUE_FORMAT_INVALID" })
-          }
-        } catch (err) {
+  const isCustomOp = !!(opDef && opDef.compile)
+  if (!isCustomOp) {
+    for (const val of checkValues) {
+      if (isVarNode(val)) {
+        const targetFieldName = val.var
+        const targetFieldDef = schema[targetFieldName]
+        if (!targetFieldDef) {
+          errors.push({
+            path,
+            field: targetFieldName,
+            operator: op,
+            message: `Field "${targetFieldName}" is not allowed`,
+            code: "FIELD_NOT_ALLOWED",
+          })
+          continue
+        }
+        if (fieldDef.type && targetFieldDef.type && fieldDef.type !== targetFieldDef.type) {
           errors.push({
             path,
             field: fieldName,
             operator: op,
-            message: err instanceof Error ? err.message : "Custom validation threw an error",
-            code: "VALUE_FORMAT_INVALID",
+            message: `Cannot compare field "${fieldName}" (type: ${fieldDef.type}) with field "${targetFieldName}" (type: ${targetFieldDef.type})`,
+            code: "OPERATOR_TYPE_MISMATCH",
           })
+        }
+      } else {
+        const valType =
+          fieldDef.type === "array" && fieldDef.constraints?.arrayOf ? fieldDef.constraints.arrayOf : fieldDef.type
+        validateValue(val, valType, fieldDef.constraints ?? {}, fieldName, op, path, errors)
+
+        if (fieldDef.validate) {
+          try {
+            const res = fieldDef.validate(val)
+            if (res === false) {
+              errors.push({
+                path,
+                field: fieldName,
+                operator: op,
+                message: `Value "${val}" failed custom validation`,
+                code: "VALUE_FORMAT_INVALID",
+              })
+            } else if (typeof res === "string") {
+              errors.push({ path, field: fieldName, operator: op, message: res, code: "VALUE_FORMAT_INVALID" })
+            }
+          } catch (err) {
+            errors.push({
+              path,
+              field: fieldName,
+              operator: op,
+              message: err instanceof Error ? err.message : "Custom validation threw an error",
+              code: "VALUE_FORMAT_INVALID",
+            })
+          }
         }
       }
     }
@@ -331,6 +391,20 @@ function validateValue(
   }
 
   if (type === "date") {
+    if (typeof value === "string") {
+      const hasTime = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value)
+      const hasTimezone = /(Z|[+-]\d{2}(:?\d{2})?)$/.test(value)
+      if (hasTime && !hasTimezone) {
+        errors.push({
+          path,
+          field: fieldName,
+          operator: op,
+          message: `Datetime strings must include a timezone offset (e.g. "2026-01-15T10:00:00Z" or "2026-01-15T10:00:00+07:00")`,
+          code: "VALUE_FORMAT_INVALID",
+        })
+        return
+      }
+    }
     const dateVal = value instanceof Date ? value : new Date(value as string | number)
     if (isNaN(dateVal.getTime())) {
       errors.push({
@@ -380,21 +454,34 @@ function validateValue(
 
   if (type === "string" && typeof value === "string") {
     const isStringSearch = ["contains", "not_contains", "startsWith", "endsWith", "like", "ilike"].includes(op)
-    if (!isStringSearch && c.minLength !== undefined && value.length < c.minLength) {
-      errors.push({
-        path,
-        field: fieldName,
-        message: `Value is shorter than minLength ${c.minLength}`,
-        code: "VALUE_LENGTH_INVALID",
-      })
-    }
-    if (c.maxLength !== undefined && value.length > c.maxLength) {
-      errors.push({
-        path,
-        field: fieldName,
-        message: `Value exceeds maxLength ${c.maxLength}`,
-        code: "VALUE_LENGTH_INVALID",
-      })
+    if (isStringSearch) {
+      const limit = c.maxLength !== undefined ? c.maxLength : 512
+      if (value.length > limit) {
+        errors.push({
+          path,
+          field: fieldName,
+          message: `Search pattern length ${value.length} exceeds maximum allowed length of ${limit}`,
+          code: "VALUE_LENGTH_INVALID",
+        })
+        return
+      }
+    } else {
+      if (c.minLength !== undefined && value.length < c.minLength) {
+        errors.push({
+          path,
+          field: fieldName,
+          message: `Value is shorter than minLength ${c.minLength}`,
+          code: "VALUE_LENGTH_INVALID",
+        })
+      }
+      if (c.maxLength !== undefined && value.length > c.maxLength) {
+        errors.push({
+          path,
+          field: fieldName,
+          message: `Value exceeds maxLength ${c.maxLength}`,
+          code: "VALUE_LENGTH_INVALID",
+        })
+      }
     }
     if (!isStringSearch && c.format) {
       const pattern = FORMAT_PATTERNS[c.format]
@@ -434,4 +521,12 @@ function isVarNode(node: unknown): node is { var: string } {
   return (
     typeof node === "object" && node !== null && "var" in node && typeof (node as { var: unknown }).var === "string"
   )
+}
+
+function getDialectDisplayName(name: string): string {
+  if (name.startsWith("sqlite")) return "SQLite"
+  if (name.startsWith("mssql")) return "MSSQL"
+  if (name.startsWith("postgres")) return "PostgreSQL"
+  if (name.startsWith("mysql")) return "MySQL"
+  return name
 }
