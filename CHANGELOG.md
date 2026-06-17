@@ -1,3 +1,21 @@
+# [1.4.0](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.3.2...v1.4.0) (2026-06-17)
+
+
+### Bug Fixes
+
+* copy jsonPath and fieldType in target field normalization ([b48956b](https://github.com/Nam088/json-logic-to-sql-v2/commit/b48956bf58d424b778eb16598e3a0a5fc341d977))
+* ORDER BY clauses for nested JSON properties by utilizing compileField ([78d8bcd](https://github.com/Nam088/json-logic-to-sql-v2/commit/78d8bcdcf05fdb7c674a5168434e378304a002d4))
+* prevent sql injection in compiler sort direction ([21f07e7](https://github.com/Nam088/json-logic-to-sql-v2/commit/21f07e7f3d2967aa445828c37e6495e2d6baf548))
+* registry conflicts with Object prototype methods when registering custom operators ([92ca6aa](https://github.com/Nam088/json-logic-to-sql-v2/commit/92ca6aacc0dcfdd6f69b19559d3d4e3b30fb94d4))
+* resolve nested JSONB array operations and parameter type casting in Postgres ([6653e30](https://github.com/Nam088/json-logic-to-sql-v2/commit/6653e307ec6a5033c114fb69cc9f0a17eab30887))
+* sqlite like escape mechanism and validator allowedValues constraint bypass for string search ([668b5b5](https://github.com/Nam088/json-logic-to-sql-v2/commit/668b5b52cef9021f3014f2c23fdac1819d21e553))
+
+
+### Features
+
+* support hierarchical nested schema, mssql json_query extraction, and extreme complex query validation ([5fea4f6](https://github.com/Nam088/json-logic-to-sql-v2/commit/5fea4f69d4937dfc21fc4a10fe8029fc705d5ed2))
+* support variables in in, between, and array operators with correct validation ([2716973](https://github.com/Nam088/json-logic-to-sql-v2/commit/271697383ec3b12b593db063221adc00b9ebcaee))
+
 ## [1.3.2](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.3.1...v1.3.2) (2026-06-15)
 
 
