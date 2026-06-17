@@ -57,21 +57,39 @@ export const postgresDialect: Dialect = {
       }
 
       case "array_op": {
+        const isJson = !!(node.jsonPath && node.jsonPath.length > 0)
         const placeholders = node.values
           .map((v, i) => {
             if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
               return compileField(v as any, ctx.dialect)
             } else {
-              return ctx.addParam(v as Primitive, `${node.field}_${i}`)
+              const p = ctx.addParam(v as Primitive, `${node.field}_${i}`)
+              if (isJson) {
+                const sqlCast = typeof v === "number" ? "::numeric"
+                  : typeof v === "boolean" ? "::boolean"
+                  : "::text"
+                return `${p}${sqlCast}`
+              }
+              return p
             }
           })
           .join(", ")
-        if (node.operator === "has_any") {
-          return `${col} && ARRAY[${placeholders}]`
-        } else if (node.operator === "has_all") {
-          return `${col} @> ARRAY[${placeholders}]`
+        if (isJson) {
+          if (node.operator === "has_any") {
+            return `${col} ?| ARRAY[${placeholders}]`
+          } else if (node.operator === "has_all") {
+            return `${col} @> jsonb_build_array(${placeholders})`
+          } else {
+            return `${col} <@ jsonb_build_array(${placeholders})`
+          }
         } else {
-          return `${col} <@ ARRAY[${placeholders}]`
+          if (node.operator === "has_any") {
+            return `${col} && ARRAY[${placeholders}]`
+          } else if (node.operator === "has_all") {
+            return `${col} @> ARRAY[${placeholders}]`
+          } else {
+            return `${col} <@ ARRAY[${placeholders}]`
+          }
         }
       }
 

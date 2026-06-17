@@ -323,7 +323,7 @@ describe("Hardcore Scenarios & Edge Cases", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        `WHERE "metadata"->'profile'->>'tags' && ARRAY[$1, $2]`
+        `WHERE "metadata"->'profile'->'tags' ?| ARRAY[$1::text, $2::text]`
       )
     })
 

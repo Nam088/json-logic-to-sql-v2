@@ -222,9 +222,9 @@ describe("Execute JSON Path SQL directly on Postgres", () => {
 
     await client.query(`
       INSERT INTO json_users (name, metadata) VALUES
-      ('Alice', '{"profile": {"age": 25, "vip": true, "email": "alice@company.com"}, "settings": {"theme": "dark"}}'),
-      ('Bob', '{"profile": {"age": 17, "vip": false, "email": "bob@company.com"}}'),
-      ('Charlie', '{"profile": {"age": 30, "vip": true, "email": "charlie@company.com"}, "preferences": {"lang": "en"}}');
+      ('Alice', '{"profile": {"age": 25, "vip": true, "email": "alice@company.com", "tags": ["admin", "user"]}, "settings": {"theme": "dark"}}'),
+      ('Bob', '{"profile": {"age": 17, "vip": false, "email": "bob@company.com", "tags": ["user"]}}'),
+      ('Charlie', '{"profile": {"age": 30, "vip": true, "email": "charlie@company.com", "tags": ["guest"]}, "preferences": {"lang": "en"}}');
     `)
   })
 
@@ -296,6 +296,41 @@ describe("Execute JSON Path SQL directly on Postgres", () => {
       expect(res2.rows).toHaveLength(2)
       const names = res2.rows.map((r) => r.name).sort()
       expect(names).toEqual(["Alice", "Charlie"])
+    }
+  })
+
+  it("filters users using has_any/has_all on nested JSON array on Postgres", async () => {
+    const jsonSchema: FieldSchema = {
+      "user.profile.tags": {
+        type: "array",
+        operators: ["has_any", "has_all"],
+        columnName: "metadata",
+        jsonPath: ["profile", "tags"],
+      },
+    }
+    const conv = createConverter(jsonSchema)
+
+    // 1. Test has_any
+    const r1 = conv.toSQL({ has_any: [{ var: "user.profile.tags" }, ["admin", "guest"]] })
+    expect(r1.ok).toBe(true)
+    if (r1.ok) {
+      console.log("POSTGRES HAS_ANY NESTED SQL:", r1.value.sql)
+      const res1 = await client.query(`SELECT * FROM json_users ${r1.value.sql}`, r1.value.params)
+      // Alice (has admin) and Charlie (has guest)
+      expect(res1.rows).toHaveLength(2)
+      const names = res1.rows.map((r) => r.name).sort()
+      expect(names).toEqual(["Alice", "Charlie"])
+    }
+
+    // 2. Test has_all
+    const r2 = conv.toSQL({ has_all: [{ var: "user.profile.tags" }, ["admin", "user"]] })
+    expect(r2.ok).toBe(true)
+    if (r2.ok) {
+      console.log("POSTGRES HAS_ALL NESTED SQL:", r2.value.sql)
+      const res2 = await client.query(`SELECT * FROM json_users ${r2.value.sql}`, r2.value.params)
+      // Only Alice has both admin and user
+      expect(res2.rows).toHaveLength(1)
+      expect(res2.rows[0].name).toBe("Alice")
     }
   })
 })

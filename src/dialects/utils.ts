@@ -95,7 +95,7 @@ export function compileField(
       if (family === "postgres") {
         let temp = baseCol
         const pathParts = n.jsonPath!.map((part) => `'${part.replace(/'/g, "''")}'`)
-        const useArrowOnly = n.fieldType === undefined
+        const useArrowOnly = n.fieldType === undefined || n.fieldType === "array"
         const limit = useArrowOnly ? pathParts.length : pathParts.length - 1
         for (let i = 0; i < limit; i++) {
           temp += `->${pathParts[i]}`
