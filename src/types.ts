@@ -189,15 +189,15 @@ export type InNode = LeafNodeBase & {
   negated: boolean
   field: string
   columnName: string
-  values: Primitive[]
+  values: (Primitive | FieldRefNode)[]
 }
 
 export type BetweenNode = LeafNodeBase & {
   type: "between"
   field: string
   columnName: string
-  min: Primitive
-  max: Primitive
+  min: Primitive | FieldRefNode
+  max: Primitive | FieldRefNode
 }
 
 export type LikeNode = LeafNodeBase & {
@@ -220,7 +220,7 @@ export type ArrayOpNode = LeafNodeBase & {
   operator: "has_any" | "has_all" | "contained_by"
   field: string
   columnName: string
-  values: Primitive[]
+  values: (Primitive | FieldRefNode)[]
 }
 
 export type JsonOpNode = LeafNodeBase & {
