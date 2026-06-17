@@ -306,7 +306,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        `WHERE ("user_data"->'profile'->>'tags' && ARRAY[$1, $2] AND "user_data"->'profile'->'contacts'->>'email' = $3)`
+        `WHERE ("user_data"->'profile'->'tags' ?| ARRAY[$1::text, $2::text] AND "user_data"->'profile'->'contacts'->>'email' = $3)`
       )
       expect(result.value.params).toEqual(["VIP", "Beta", "test@example.com"])
     })
@@ -624,7 +624,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        'WHERE "user_data"->\'profile\'->>\'tags\' && ARRAY[$1, "user_data"->>\'id\']'
+        'WHERE "user_data"->\'profile\'->\'tags\' ?| ARRAY[$1::text, "user_data"->>\'id\']'
       )
       expect(result.value.params).toEqual(["VIP"])
     })
