@@ -87,7 +87,7 @@ export function compileField(
 ): string {
   const baseCol = buildBaseColumn(n, dialect)
 
-  if (n.jsonPath && n.jsonPath.length > 0) {
+  if (n.jsonPath && n.jsonPath.length > 0 && !n.sqlExpression) {
     // Prefer explicit jsonPathDialect; fall back to name-prefix inference for backward compat.
     // Custom dialects should set jsonPathDialect to avoid relying on name-prefix conventions.
     const family: "postgres" | "mysql" | "sqlite" | "mssql" | null =
