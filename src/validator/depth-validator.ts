@@ -28,7 +28,7 @@ export function checkDepth(
     const keys = Object.keys(node as object)
     for (const key of keys) {
       const val = (node as Record<string, unknown>)[key]
-      checkDepth(val, maxDepth, `${path}.${key}`, errors, currentDepth + 1, visited)
+      checkDepth(val, maxDepth, path ? `${path}.${key}` : key, errors, currentDepth + 1, visited)
     }
   }
 

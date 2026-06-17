@@ -83,7 +83,8 @@ export type FieldNodeBase = {
  */
 export function compileField(
   n: { columnName: string; tableName?: string; jsonPath?: string[]; fieldType?: FieldType; sqlExpression?: string },
-  dialect: Dialect
+  dialect: Dialect,
+  options?: { skipCast?: boolean }
 ): string {
   const baseCol = buildBaseColumn(n, dialect)
 
@@ -101,8 +102,8 @@ export function compileField(
     const colPathBase = (() => {
       if (family === "postgres") {
         let temp = baseCol
-        const pathParts = n.jsonPath!.map((part) => `'${part.replace(/'/g, "''")}'`)
-        const useArrowOnly = n.fieldType === undefined || n.fieldType === "array"
+        const pathParts = n.jsonPath!.map((part) => /^\d+$/.test(part) ? part : `'${part.replace(/'/g, "''")}'`)
+        const useArrowOnly = (n.fieldType === undefined || n.fieldType === "array") && !options?.skipCast
         const limit = useArrowOnly ? pathParts.length : pathParts.length - 1
         for (let i = 0; i < limit; i++) {
           temp += `->${pathParts[i]}`
@@ -113,16 +114,41 @@ export function compileField(
         return temp
       }
       if (family === "mysql") {
-        const pathStr = "$." + n.jsonPath!.map((part) => `"${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(".")
-        return `${baseCol}->>'${pathStr.replace(/'/g, "''")}'`
+        let pathStr = "$"
+        for (const part of n.jsonPath!) {
+          if (/^\d+$/.test(part)) {
+            pathStr += `[${part}]`
+          } else {
+            pathStr += `."${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+          }
+        }
+        const useArrow = (n.fieldType === "array" || n.fieldType === undefined) && !options?.skipCast
+        const opStr = useArrow ? "->" : "->>"
+        return `${baseCol}${opStr}'${pathStr.replace(/'/g, "''")}'`
       }
       if (family === "sqlite") {
-        const pathStr = "$." + n.jsonPath!.map((part) => `"${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(".")
-        return `${baseCol} ->> '${pathStr.replace(/'/g, "''")}'`
+        let pathStr = "$"
+        for (const part of n.jsonPath!) {
+          if (/^\d+$/.test(part)) {
+            pathStr += `[${part}]`
+          } else {
+            pathStr += `."${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+          }
+        }
+        const useArrow = (n.fieldType === "array" || n.fieldType === undefined) && !options?.skipCast
+        const opStr = useArrow ? "->" : "->>"
+        return `${baseCol} ${opStr} '${pathStr.replace(/'/g, "''")}'`
       }
       if (family === "mssql") {
-        const pathStr = "$." + n.jsonPath!.map((part) => `"${part.replace(/"/g, '""')}"`).join(".")
-        const useQuery = n.fieldType === "array" || n.fieldType === undefined
+        let pathStr = "$"
+        for (const part of n.jsonPath!) {
+          if (/^\d+$/.test(part)) {
+            pathStr += `[${part}]`
+          } else {
+            pathStr += `."${part.replace(/"/g, '""')}"`
+          }
+        }
+        const useQuery = (n.fieldType === "array" || n.fieldType === undefined) && !options?.skipCast
         const funcName = useQuery ? "JSON_QUERY" : "JSON_VALUE"
         return `${funcName}(${baseCol}, '${pathStr.replace(/'/g, "''")}')`
       }
@@ -131,7 +157,7 @@ export function compileField(
 
     let colPath = colPathBase
 
-    if (n.fieldType) {
+    if (n.fieldType && !options?.skipCast) {
       let castType = ""
       switch (family) {
         case "postgres":

@@ -24,17 +24,17 @@ export type OperatorDef = {
 }
 
 const builtIn: Record<string, OperatorDef> = {
-  "==": { allowedTypes: ["any"], arity: "binary" },
-  "===": { allowedTypes: ["any"], arity: "binary" },
-  "!=": { allowedTypes: ["any"], arity: "binary" },
-  "!==": { allowedTypes: ["any"], arity: "binary" },
+  "==": { allowedTypes: ["string", "number", "boolean", "date", "uuid"], arity: "binary" },
+  "===": { allowedTypes: ["string", "number", "boolean", "date", "uuid"], arity: "binary" },
+  "!=": { allowedTypes: ["string", "number", "boolean", "date", "uuid"], arity: "binary" },
+  "!==": { allowedTypes: ["string", "number", "boolean", "date", "uuid"], arity: "binary" },
   ">": { allowedTypes: ["number", "date"], arity: "binary" },
   ">=": { allowedTypes: ["number", "date"], arity: "binary" },
   "<": { allowedTypes: ["number", "date"], arity: "binary" },
   "<=": { allowedTypes: ["number", "date"], arity: "binary" },
   between: { allowedTypes: ["number", "date"], arity: "binary" },
-  in: { allowedTypes: ["any"], arity: "variadic" },
-  not_in: { allowedTypes: ["any"], arity: "variadic" },
+  in: { allowedTypes: ["string", "number", "boolean", "date", "uuid"], arity: "variadic" },
+  not_in: { allowedTypes: ["string", "number", "boolean", "date", "uuid"], arity: "variadic" },
   contains: { allowedTypes: ["string"], arity: "binary" },
   not_contains: { allowedTypes: ["string"], arity: "binary" },
   startsWith: { allowedTypes: ["string"], arity: "binary" },
@@ -50,7 +50,7 @@ const builtIn: Record<string, OperatorDef> = {
     allowedTypes: ["any", "array"],
     arity: "binary",
     validate: (args) => {
-      const val = Array.isArray(args[0]) ? args[0][0] : args[0]
+      const val = args[0]
       if (typeof val !== "string") {
         return "Key name must be a string"
       }

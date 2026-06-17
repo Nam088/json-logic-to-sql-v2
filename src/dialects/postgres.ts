@@ -17,7 +17,7 @@ export const postgresDialect: Dialect = {
   },
 
   compileNode(node: AstNode, ctx: CompileContext): string {
-    const col = "columnName" in node ? compileField(node as any, ctx.dialect) : ""
+    const col = "columnName" in node ? compileField(node as any, ctx.dialect, { skipCast: node.type === "null_check" }) : ""
 
     const commonRes = compileCommonNode(node, ctx, col)
     if (commonRes !== null) {
@@ -26,29 +26,45 @@ export const postgresDialect: Dialect = {
 
     switch (node.type) {
       case "like": {
+        const isField = typeof node.value === "object" && node.value !== null && (node.value as any).type === "field"
+        if (isField) {
+          const targetCol = compileField(node.value as any, ctx.dialect)
+          switch (node.operator) {
+            case "contains":     return `${col} LIKE '%' || ${targetCol} || '%'`
+            case "not_contains": return `${col} NOT LIKE '%' || ${targetCol} || '%'`
+            case "startsWith":   return `${col} LIKE ${targetCol} || '%'`
+            case "endsWith":     return `${col} LIKE '%' || ${targetCol}`
+            case "like":         return `${col} LIKE ${targetCol}`
+            case "ilike":        return `${col} ILIKE ${targetCol}`
+            default:
+              throw new Error(`Unsupported operator for like node: ${(node as any).operator}`)
+          }
+        }
+
+        const strVal = node.value as string
         switch (node.operator) {
           case "contains": {
-            const p = ctx.addParam(`%${escapeLikePosix(node.value)}%`, node.field)
+            const p = ctx.addParam(`%${escapeLikePosix(strVal)}%`, node.field)
             return `${col} LIKE ${p}`
           }
           case "not_contains": {
-            const p = ctx.addParam(`%${escapeLikePosix(node.value)}%`, node.field)
+            const p = ctx.addParam(`%${escapeLikePosix(strVal)}%`, node.field)
             return `${col} NOT LIKE ${p}`
           }
           case "startsWith": {
-            const p = ctx.addParam(`${escapeLikePosix(node.value)}%`, node.field)
+            const p = ctx.addParam(`${escapeLikePosix(strVal)}%`, node.field)
             return `${col} LIKE ${p}`
           }
           case "endsWith": {
-            const p = ctx.addParam(`%${escapeLikePosix(node.value)}`, node.field)
+            const p = ctx.addParam(`%${escapeLikePosix(strVal)}`, node.field)
             return `${col} LIKE ${p}`
           }
           case "like": {
-            const p = ctx.addParam(node.value, node.field)
+            const p = ctx.addParam(strVal, node.field)
             return `${col} LIKE ${p}`
           }
           case "ilike": {
-            const p = ctx.addParam(node.value, node.field)
+            const p = ctx.addParam(strVal, node.field)
             return `${col} ILIKE ${p}`
           }
           default:
@@ -58,7 +74,29 @@ export const postgresDialect: Dialect = {
 
       case "array_op": {
         const isJson = !!(node.jsonPath && node.jsonPath.length > 0)
+        const isFieldRef = node.values.length === 1 &&
+          typeof node.values[0] === "object" &&
+          node.values[0] !== null &&
+          "type" in node.values[0] &&
+          (node.values[0] as any).type === "field";
+
         if (isJson) {
+          if (isFieldRef) {
+            const targetCol = compileField(node.values[0] as any, ctx.dialect)
+            const targetIsArray = (node.values[0] as any).fieldType === "array"
+
+            if (node.operator === "has_any") {
+              if (targetIsArray) {
+                return `jsonb_exists_any(${col}, ARRAY(SELECT jsonb_array_elements_text(${targetCol})))`
+              } else {
+                return `jsonb_exists(${col}, ${targetCol})`
+              }
+            } else if (node.operator === "has_all") {
+              return `${col} @> ${targetCol}`
+            } else {
+              return `${col} <@ ${targetCol}`
+            }
+          }
           if (node.operator === "has_any") {
             const isStringLike = (v: any): boolean => {
               if (typeof v === "string") return true
@@ -74,12 +112,12 @@ export const postgresDialect: Dialect = {
                   if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
                     return compileField(v as any, ctx.dialect)
                   } else {
-                    const p = ctx.addParam(v as Primitive, `${node.field}_${i}`)
+                    const p = ctx.addParam(v as Primitive, `${node.field}_${i}`, node.arrayOf)
                     return `${p}::text`
                   }
                 })
                 .join(", ")
-              return `${col} ?| ARRAY[${placeholders}]`
+              return `jsonb_exists_any(${col}, ARRAY[${placeholders}])`
             } else {
               const conditions = node.values
                 .map((v, i) => {
@@ -87,7 +125,7 @@ export const postgresDialect: Dialect = {
                     const targetCol = compileField(v as any, ctx.dialect)
                     return `${col} @> jsonb_build_array(${targetCol})`
                   } else {
-                    const p = ctx.addParam(v as Primitive, `${node.field}_${i}`)
+                    const p = ctx.addParam(v as Primitive, `${node.field}_${i}`, node.arrayOf)
                     const sqlCast = typeof v === "number" ? "::numeric"
                       : typeof v === "boolean" ? "::boolean"
                       : "::text"
@@ -103,7 +141,7 @@ export const postgresDialect: Dialect = {
                 if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
                   return compileField(v as any, ctx.dialect)
                 } else {
-                  const p = ctx.addParam(v as Primitive, `${node.field}_${i}`)
+                  const p = ctx.addParam(v as Primitive, `${node.field}_${i}`, node.arrayOf)
                   const sqlCast = typeof v === "number" ? "::numeric"
                     : typeof v === "boolean" ? "::boolean"
                     : "::text"
@@ -118,12 +156,22 @@ export const postgresDialect: Dialect = {
             }
           }
         } else {
+          if (isFieldRef) {
+            const targetCol = compileField(node.values[0] as any, ctx.dialect)
+            if (node.operator === "has_any") {
+              return `${col} && ${targetCol}`
+            } else if (node.operator === "has_all") {
+              return `${col} @> ${targetCol}`
+            } else {
+              return `${col} <@ ${targetCol}`
+            }
+          }
           const placeholders = node.values
             .map((v, i) => {
               if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
                 return compileField(v as any, ctx.dialect)
               } else {
-                return ctx.addParam(v as Primitive, `${node.field}_${i}`)
+                return ctx.addParam(v as Primitive, `${node.field}_${i}`, node.arrayOf)
               }
             })
             .join(", ")
@@ -140,10 +188,10 @@ export const postgresDialect: Dialect = {
       case "json_op": {
         if (node.operator === "json_has_key") {
           const p = ctx.addParam(node.values[0]!, node.field)
-          return `(${col} ? ${p})`
+          return `jsonb_exists(${col}, ${p})`
         } else {
           const placeholders = node.values.map((v, i) => ctx.addParam(v, `${node.field}_${i}`)).join(", ")
-          return `(${col} ?| ARRAY[${placeholders}])`
+          return `jsonb_exists_any(${col}, ARRAY[${placeholders}])`
         }
       }
     }
@@ -166,5 +214,11 @@ export const postgresNamedDialect: Dialect = {
   ...postgresDialect,
   name: "postgres-named",
   paramStyle: "named",
-  formatParam: (index, name) => `:${name ? `${name}_${index}` : `p${index}`}`,
+  formatParam: (index, name) => {
+    if (name) {
+      const safeName = name.replace(/[^a-zA-Z0-9_]/g, "_")
+      return `:${safeName}_${index}`
+    }
+    return `:p${index}`
+  },
 }

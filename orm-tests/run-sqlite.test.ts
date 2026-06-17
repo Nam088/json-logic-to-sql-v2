@@ -21,21 +21,22 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
         vip INTEGER NOT NULL,
         min_age INTEGER,
         max_age INTEGER,
-        other_status TEXT
+        other_status TEXT,
+        metadata TEXT
       );
     `)
 
     const insert = db.prepare(`
-      INSERT INTO test_users (name, age, salary, created_at, status, vip, min_age, max_age, other_status)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO test_users (name, age, salary, created_at, status, vip, min_age, max_age, other_status, metadata)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `)
 
-    insert.run("Alice", 25, 1500, "2026-06-01T10:00:00.000Z", "active", 1, 20, 30, "inactive")
-    insert.run("Bob", 30, 2000, "2026-05-01T10:00:00.000Z", "pending", 1, 20, 28, "active")
-    insert.run("Charlie", 35, 3000, "2026-05-01T10:00:00.000Z", "active", 0, 30, 40, "pending")
-    insert.run("David", 20, 1000, "2026-04-01T10:00:00.000Z", "active", 1, 15, 25, "active")
-    insert.run("Eve", 40, 4000, "2026-07-01T10:00:00.000Z", "inactive", 0, 45, 50, "inactive")
-    insert.run("Frank", 28, 1800, "2026-05-01T10:00:00.000Z", "act_ive", 1, 20, 30, "inactive")
+    insert.run("Alice", 25, 1500, "2026-06-01T10:00:00.000Z", "active", 1, 20, 30, "inactive", '{"profile":{"birth_date":"not-a-date","path":"C:\\\\Windows\\\\System32","vip":true}}')
+    insert.run("Bob", 30, 2000, "2026-05-01T10:00:00.000Z", "pending", 1, 20, 28, "active", '{"profile":{"birth_date":"2026-01-15T00:00:00Z","path":"C:\\\\Program Files","vip":false}}')
+    insert.run("Charlie", 35, 3000, "2026-05-01T10:00:00.000Z", "active", 0, 30, 40, "pending", null)
+    insert.run("David", 20, 1000, "2026-04-01T10:00:00.000Z", "active", 1, 15, 25, "active", null)
+    insert.run("Eve", 40, 4000, "2026-07-01T10:00:00.000Z", "inactive", 0, 45, 50, "inactive", null)
+    insert.run("Frank", 28, 1800, "2026-05-01T10:00:00.000Z", "act_ive", 1, 20, 30, "inactive", null)
   })
 
   const sqliteSchema: FieldSchema = {
@@ -52,6 +53,25 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
     min_age: { type: "number", operators: ["==", "<", ">"] },
     max_age: { type: "number", operators: ["==", "<", ">"] },
     other_status: { type: "string", operators: ["=="] },
+    birth_date: {
+      type: "date",
+      columnName: "metadata",
+      jsonPath: ["profile", "birth_date"],
+      operators: ["is_null", "is_not_null"],
+      nullable: true,
+    },
+    profile_path: {
+      type: "string",
+      columnName: "metadata",
+      jsonPath: ["profile", "path"],
+      operators: ["like"],
+    },
+    profile_vip: {
+      type: "boolean",
+      columnName: "metadata",
+      jsonPath: ["profile", "vip"],
+      operators: ["=="],
+    },
   }
 
   it("compiles and executes SQLite positional (?) dialect queries", () => {
@@ -215,5 +235,72 @@ describe("Execute SQLite SQL directly on SQLite DB", () => {
     // Kỳ vọng chỉ tìm thấy Frank ("act_ive"), KHÔNG tìm thấy Alice hay David ("active")
     const names = rows.map(r => r.name)
     expect(names).toEqual(["Frank"])
+  })
+
+  it("compiles and executes SQLite is_null check on typed JSON path without cast failure on real DB", () => {
+    const converter = createConverter(sqliteSchema, { dialect: "sqlite" })
+    
+    // birth_date is defined as type "date", but metadata has "not-a-date" for Alice, which is non-castable.
+    // By skipping casting for null checks, SQLite executes it successfully.
+    const logic = {
+      is_null: [{ var: "birth_date" }]
+    }
+    
+    const result = converter.toSQL(logic)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    
+    const { sql, params } = result.value
+    expect(sql).toBe(`WHERE "metadata" ->> '$."profile"."birth_date"' IS NULL`)
+    
+    const stmt = db.prepare(`SELECT * FROM test_users ${sql}`)
+    const rows = stmt.all(...(params as any[])) as any[]
+    
+    // Alice and Bob have non-null birth_date. Charlie, David, Eve, Frank have null/missing birth_date.
+    expect(rows).toHaveLength(4)
+    const names = rows.map(r => r.name).sort()
+    expect(names).toEqual(["Charlie", "David", "Eve", "Frank"])
+  })
+
+  it("compiles and executes SQLite raw like with backslash on real DB", () => {
+    const converter = createConverter(sqliteSchema, { dialect: "sqlite" })
+    
+    // Query for paths starting with C:\Windows
+    const logic = {
+      like: [{ var: "profile_path" }, "C:\\Windows%"]
+    }
+    
+    const result = converter.toSQL(logic)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    
+    const { sql, params } = result.value
+    expect(sql).toBe(`WHERE "metadata" ->> '$."profile"."path"' LIKE ?`)
+    
+    const stmt = db.prepare(`SELECT * FROM test_users ${sql}`)
+    const rows = stmt.all(...(params as any[])) as any[]
+    
+    // Alice's path is "C:\Windows\System32" (matches "C:\Windows%")
+    // Bob's path is "C:\Program Files" (does not match)
+    expect(rows).toHaveLength(1)
+    expect(rows[0].name).toBe("Alice")
+  })
+
+  it("compiles and executes SQLite boolean JSON path check on real DB", () => {
+    const converter = createConverter(sqliteSchema, { dialect: "sqlite" })
+    const logic = {
+      "==": [{ var: "profile_vip" }, true]
+    }
+    const result = converter.toSQL(logic)
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+    const { sql, params } = result.value
+    
+    const stmt = db.prepare(`SELECT * FROM test_users ${sql}`)
+    const rows = stmt.all(...(params as any[])) as any[]
+    
+    // Alice's vip is true.
+    expect(rows).toHaveLength(1)
+    expect(rows[0].name).toBe("Alice")
   })
 })

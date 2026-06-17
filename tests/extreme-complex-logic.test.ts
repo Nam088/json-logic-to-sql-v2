@@ -236,7 +236,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       if (!result.ok) return
 
       expect(result.value.sql).toBe(
-        `WHERE (("user_data"->'meta' ? $1) AND "user_data"->'meta'->>'ip' = $2)`
+        `WHERE (jsonb_exists("user_data"->'meta', $1) AND "user_data"->'meta'->>'ip' = $2)`
       )
       expect(result.value.params).toEqual(["ip", "127.0.0.1"])
     })
@@ -306,7 +306,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        `WHERE ("user_data"->'profile'->'tags' ?| ARRAY[$1::text, $2::text] AND "user_data"->'profile'->'contacts'->>'email' = $3)`
+        `WHERE (jsonb_exists_any("user_data"->'profile'->'tags', ARRAY[$1::text, $2::text]) AND "user_data"->'profile'->'contacts'->>'email' = $3)`
       )
       expect(result.value.params).toEqual(["VIP", "Beta", "test@drkumo.com"])
     })
@@ -630,7 +630,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        'WHERE "user_data"->\'profile\'->\'tags\' ?| ARRAY[$1::text, "user_data"->>\'id\']'
+        'WHERE jsonb_exists_any("user_data"->\'profile\'->\'tags\', ARRAY[$1::text, "user_data"->>\'id\'])'
       )
       expect(result.value.params).toEqual(["VIP"])
     })
@@ -643,7 +643,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        'WHERE JSON_OVERLAPS(`user_data`->>\'$."profile"."tags"\', JSON_ARRAY(?, `user_data`->>\'$."id"\'))'
+        'WHERE JSON_OVERLAPS(`user_data`->\'$."profile"."tags"\', JSON_ARRAY(?, `user_data`->>\'$."id"\'))'
       )
       expect(result.value.params).toEqual(["VIP"])
     })

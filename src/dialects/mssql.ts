@@ -18,7 +18,7 @@ export const mssqlDialect: Dialect = {
   },
 
   compileNode(node: AstNode, ctx: CompileContext): string {
-    const col = "columnName" in node ? compileField(node as any, ctx.dialect) : ""
+    const col = "columnName" in node ? compileField(node as any, ctx.dialect, { skipCast: node.type === "null_check" }) : ""
 
     const commonRes = compileCommonNode(node, ctx, col)
     if (commonRes !== null) {
@@ -27,29 +27,45 @@ export const mssqlDialect: Dialect = {
 
     switch (node.type) {
       case "like": {
+        const isField = typeof node.value === "object" && node.value !== null && (node.value as any).type === "field"
+        if (isField) {
+          const targetCol = compileField(node.value as any, ctx.dialect)
+          switch (node.operator) {
+            case "contains":     return `${col} LIKE '%' + ${targetCol} + '%'`
+            case "not_contains": return `${col} NOT LIKE '%' + ${targetCol} + '%'`
+            case "startsWith":   return `${col} LIKE ${targetCol} + '%'`
+            case "endsWith":     return `${col} LIKE '%' + ${targetCol}`
+            case "like":         return `${col} LIKE ${targetCol}`
+            case "ilike":        return `LOWER(${col}) LIKE LOWER(${targetCol})`
+            default:
+              throw new Error(`Unsupported operator for like node: ${(node as any).operator}`)
+          }
+        }
+
+        const strVal = node.value as string
         switch (node.operator) {
           case "contains": {
-            const p = ctx.addParam(`%${escapeLikeMssql(node.value)}%`, node.field)
+            const p = ctx.addParam(`%${escapeLikeMssql(strVal)}%`, node.field)
             return `${col} LIKE ${p}`
           }
           case "not_contains": {
-            const p = ctx.addParam(`%${escapeLikeMssql(node.value)}%`, node.field)
+            const p = ctx.addParam(`%${escapeLikeMssql(strVal)}%`, node.field)
             return `${col} NOT LIKE ${p}`
           }
           case "startsWith": {
-            const p = ctx.addParam(`${escapeLikeMssql(node.value)}%`, node.field)
+            const p = ctx.addParam(`${escapeLikeMssql(strVal)}%`, node.field)
             return `${col} LIKE ${p}`
           }
           case "endsWith": {
-            const p = ctx.addParam(`%${escapeLikeMssql(node.value)}`, node.field)
+            const p = ctx.addParam(`%${escapeLikeMssql(strVal)}`, node.field)
             return `${col} LIKE ${p}`
           }
           case "like": {
-            const p = ctx.addParam(node.value, node.field)
+            const p = ctx.addParam(strVal, node.field)
             return `${col} LIKE ${p}`
           }
           case "ilike": {
-            const p = ctx.addParam(node.value, node.field)
+            const p = ctx.addParam(strVal, node.field)
             return `LOWER(${col}) LIKE LOWER(${p})`
           }
           default:
@@ -123,5 +139,11 @@ export const mssqlNamedDialect: Dialect = {
   ...mssqlDialect,
   name: "mssql-named",
   paramStyle: "named",
-  formatParam: (index, name) => `@${name ? `${name}_${index}` : `p${index}`}`,
+  formatParam: (index, name) => {
+    if (name) {
+      const safeName = name.replace(/[^a-zA-Z0-9_]/g, "_")
+      return `@${safeName}_${index}`
+    }
+    return `@p${index}`
+  },
 }

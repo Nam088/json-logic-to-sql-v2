@@ -36,22 +36,26 @@ export function flattenSchema(schema: FieldSchema): FieldSchema {
   ) {
     for (const [key, def] of Object.entries(properties)) {
       const logicalPath = `${parentLogicalPath}.${key}`
-      const currentJsonPath = [...jsonPathPrefix, key]
+      const customCol = def.columnName || def.column || def.internal?.column
+      const activeCol = customCol || columnName
+      const activeJsonPath = customCol
+        ? (def.jsonPath || [])
+        : [...jsonPathPrefix, ...(def.jsonPath || [key])]
 
       if (def.properties) {
         if (def.operators) {
           flat[logicalPath] = {
             ...def,
-            columnName,
-            jsonPath: def.jsonPath ? [...currentJsonPath, ...def.jsonPath] : currentJsonPath,
+            columnName: activeCol,
+            jsonPath: activeJsonPath,
           }
         }
-        traverse(def.properties, logicalPath, columnName, currentJsonPath)
+        traverse(def.properties, logicalPath, activeCol, activeJsonPath)
       } else {
         flat[logicalPath] = {
           ...def,
-          columnName,
-          jsonPath: def.jsonPath ? [...currentJsonPath, ...def.jsonPath] : currentJsonPath,
+          columnName: activeCol,
+          jsonPath: activeJsonPath,
         }
       }
     }
@@ -59,7 +63,7 @@ export function flattenSchema(schema: FieldSchema): FieldSchema {
 
   for (const [key, def] of Object.entries(schema)) {
     if (def.properties) {
-      const columnName = def.columnName || def.internal?.column || key
+      const columnName = def.columnName || def.column || def.internal?.column || key
       const jsonPathPrefix = def.jsonPath || []
       if (def.operators) {
         const flatDef: FieldDef = {

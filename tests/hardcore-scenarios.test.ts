@@ -323,7 +323,7 @@ describe("Hardcore Scenarios & Edge Cases", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        `WHERE "metadata"->'profile'->'tags' ?| ARRAY[$1::text, $2::text]`
+        `WHERE jsonb_exists_any("metadata"->'profile'->'tags', ARRAY[$1::text, $2::text])`
       )
     })
 
@@ -333,16 +333,19 @@ describe("Hardcore Scenarios & Edge Cases", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        `WHERE JSON_OVERLAPS(\`metadata\`->>'$."profile"."tags"', JSON_ARRAY(?, ?))`
+        `WHERE JSON_OVERLAPS(\`metadata\`->'$."profile"."tags"', JSON_ARRAY(?, ?))`
       )
     })
 
-    it("fails compilation gracefully in SQLite (no array operations supported)", () => {
+    it("compiles JSON path array operations in SQLite using json_each", () => {
       const converter = createConverter(megaSchema, { dialect: "sqlite" })
       const result = converter.toSQL(logic)
-      expect(result.ok).toBe(false)
-      if (result.ok) return
-      expect(result.errors[0]?.message).toContain("not supported by SQLite dialect")
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.value.sql).toBe(
+          `WHERE EXISTS (SELECT 1 FROM json_each("metadata" -> '$."profile"."tags"') WHERE value IN (?, ?))`
+        )
+      }
     })
 
     it("fails compilation gracefully in MSSQL (no array operations supported)", () => {

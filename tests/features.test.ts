@@ -265,12 +265,12 @@ describe("New Features Suite", () => {
       expect(result.value.sql).toBe('WHERE "name" = ?')
     })
 
-    it("rejects array operation via validation (not supported by SQLite)", () => {
+    it("compiles array operation in SQLite using json_each", () => {
       const result = converter.toSQL({ has_any: [{ var: "tags" }, ["admin"]] })
-      expect(result.ok).toBe(false)
-      if (result.ok) return
-      expect(result.errors[0]?.code).toBe("OPERATOR_NOT_ALLOWED")
-      expect(result.errors[0]?.message).toContain("not supported by SQLite dialect")
+      expect(result.ok).toBe(true)
+      if (result.ok) {
+        expect(result.value.sql).toBe(`WHERE EXISTS (SELECT 1 FROM json_each("tags") WHERE value IN (?))`)
+      }
     })
   })
 
@@ -353,14 +353,14 @@ describe("New Features Suite", () => {
       const r2 = converter.toSQL({ json_has_key: [{ var: "metadata" }, "profile"] })
       expect(r2.ok).toBe(true)
       if (r2.ok) {
-        expect(r2.value.sql).toBe(`WHERE ("metadata" ? $1)`)
+        expect(r2.value.sql).toBe(`WHERE jsonb_exists("metadata", $1)`)
         expect(r2.value.params).toEqual(["profile"])
       }
 
       const r3 = converter.toSQL({ json_has_any_keys: [{ var: "metadata" }, ["profile", "settings"]] })
       expect(r3.ok).toBe(true)
       if (r3.ok) {
-        expect(r3.value.sql).toBe(`WHERE ("metadata" ?| ARRAY[$1, $2])`)
+        expect(r3.value.sql).toBe(`WHERE jsonb_exists_any("metadata", ARRAY[$1, $2])`)
         expect(r3.value.params).toEqual(["profile", "settings"])
       }
     })
@@ -377,14 +377,14 @@ describe("New Features Suite", () => {
       const r2 = converter.toSQL({ json_has_key: [{ var: "metadata" }, "profile"] })
       expect(r2.ok).toBe(true)
       if (r2.ok) {
-        expect(r2.value.sql).toBe(`WHERE JSON_CONTAINS_PATH(\`metadata\`, 'one', CONCAT('$."', REPLACE(?, '"', '\\\\"'), '"'))`)
+        expect(r2.value.sql).toBe(`WHERE JSON_CONTAINS_PATH(\`metadata\`, 'one', CONCAT('$."', REPLACE(REPLACE(?, '\\\\', '\\\\\\\\'), '"', '\\\\"'), '"'))`)
       }
 
       const r3 = converter.toSQL({ json_has_any_keys: [{ var: "metadata" }, ["profile", "settings"]] })
       expect(r3.ok).toBe(true)
       if (r3.ok) {
         expect(r3.value.sql).toBe(
-          `WHERE JSON_CONTAINS_PATH(\`metadata\`, 'one', CONCAT('$."', REPLACE(?, '"', '\\\\"'), '"'), CONCAT('$."', REPLACE(?, '"', '\\\\"'), '"'))`
+          `WHERE JSON_CONTAINS_PATH(\`metadata\`, 'one', CONCAT('$."', REPLACE(REPLACE(?, '\\\\', '\\\\\\\\'), '"', '\\\\"'), '"'), CONCAT('$."', REPLACE(REPLACE(?, '\\\\', '\\\\\\\\'), '"', '\\\\"'), '"'))`
         )
       }
     })
@@ -393,19 +393,22 @@ describe("New Features Suite", () => {
       const converter = createConverter(customSchema, { dialect: "sqlite" })
 
       const r1 = converter.toSQL({ contained_by: [{ var: "tags" }, ["t1"]] })
-      expect(r1.ok).toBe(false)
+      expect(r1.ok).toBe(true)
+      if (r1.ok) {
+        expect(r1.value.sql).toBe(`WHERE NOT EXISTS (SELECT 1 FROM json_each("tags") WHERE value NOT IN (?))`)
+      }
 
       const r2 = converter.toSQL({ json_has_key: [{ var: "metadata" }, "profile"] })
       expect(r2.ok).toBe(true)
       if (r2.ok) {
-        expect(r2.value.sql).toBe(`WHERE json_type("metadata", '$."' || replace(?, '"', '\\"') || '"') IS NOT NULL`)
+        expect(r2.value.sql).toBe(`WHERE json_type("metadata", '$."' || replace(replace(?, '\\\\', '\\\\\\\\'), '"', '\\\\"') || '"') IS NOT NULL`)
       }
 
       const r3 = converter.toSQL({ json_has_any_keys: [{ var: "metadata" }, ["profile", "settings"]] })
       expect(r3.ok).toBe(true)
       if (r3.ok) {
         expect(r3.value.sql).toBe(
-          `WHERE (json_type("metadata", '$."' || replace(?, '"', '\\"') || '"') IS NOT NULL OR json_type("metadata", '$."' || replace(?, '"', '\\"') || '"') IS NOT NULL)`
+          `WHERE (json_type("metadata", '$."' || replace(replace(?, '\\\\', '\\\\\\\\'), '"', '\\\\"') || '"') IS NOT NULL OR json_type("metadata", '$."' || replace(replace(?, '\\\\', '\\\\\\\\'), '"', '\\\\"') || '"') IS NOT NULL)`
         )
       }
     })

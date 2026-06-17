@@ -1,4 +1,20 @@
 
+function formatUTC(d: Date, withMs = false): string {
+  const pad = (n: number, width = 2) => String(n).padStart(width, "0")
+  const year = d.getUTCFullYear()
+  const yearStr = year < 0 ? `-${pad(Math.abs(year), 4)}` : pad(year, 4)
+  const month = pad(d.getUTCMonth() + 1)
+  const day = pad(d.getUTCDate())
+  const hours = pad(d.getUTCHours())
+  const minutes = pad(d.getUTCMinutes())
+  const seconds = pad(d.getUTCSeconds())
+  const base = `${yearStr}-${month}-${day}T${hours}:${minutes}:${seconds}`
+  if (withMs) {
+    return `${base}.${pad(d.getUTCMilliseconds(), 3)}`
+  }
+  return base
+}
+
 /**
  * Normalizes a date value (either an ISO 8601 string or a Date object)
  * into the format required by the target database dialect.
@@ -9,8 +25,8 @@ export function normalizeDateForDB(
 ): string | number | null {
   if (value == null) return null
 
-  // If it's a string, try to parse it. If it's a Date, use it. Otherwise, pass it through.
-  if (typeof value !== "string" && !(value instanceof Date)) {
+  // If it's a string or number, try to parse it. If it's a Date, use it. Otherwise, return null.
+  if (typeof value !== "string" && typeof value !== "number" && !(value instanceof Date)) {
     return null
   }
 
@@ -29,12 +45,10 @@ export function normalizeDateForDB(
 
   switch (format) {
     case "mysql":
-      // Convert "2026-01-01T00:00:00.000Z" -> "2026-01-01 00:00:00"
-      return d.toISOString().slice(0, 19).replace("T", " ")
+      return formatUTC(d).replace("T", " ")
 
     case "mssql":
-      // Convert "2026-01-01T00:00:00.000Z" -> "2026-01-01T00:00:00.000" (no Z suffix)
-      return d.toISOString().slice(0, 23)
+      return formatUTC(d, true)
 
     case "unix":
       return Math.floor(d.getTime() / 1000)

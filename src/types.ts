@@ -173,6 +173,7 @@ type LeafNodeBase = {
   fieldType?: FieldType | undefined
   sqlExpression?: string | undefined
   orExpression?: string | string[] | undefined
+  arrayOf?: FieldType | undefined
 }
 
 export type FieldRefNode = {
@@ -212,7 +213,7 @@ export type LikeNode = LeafNodeBase & {
   operator: "contains" | "not_contains" | "startsWith" | "endsWith" | "like" | "ilike"
   field: string
   columnName: string
-  value: string
+  value: string | FieldRefNode
 }
 
 export type NullCheckNode = LeafNodeBase & {

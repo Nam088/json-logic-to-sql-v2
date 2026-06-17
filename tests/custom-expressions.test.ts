@@ -161,7 +161,7 @@ describe("Runtime Field Mappings, OR-Expansion & SQL Expressions", () => {
 
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.sql).toBe(`WHERE ("status" IS NULL OR "col2" IS NULL)`)
+    expect(result.value.sql).toBe(`WHERE ("status" IS NULL AND "col2" IS NULL)`)
     expect(result.value.params).toEqual([])
   })
 
@@ -387,7 +387,7 @@ describe("Runtime Field Mappings, OR-Expansion & SQL Expressions", () => {
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.sql).toBe(`WHERE ("custom_meta" ? $1)`)
+    expect(result.value.sql).toBe(`WHERE jsonb_exists("custom_meta", $1)`)
   })
 
   it("handles json_has_any_keys operator with columnName override", () => {
@@ -404,7 +404,7 @@ describe("Runtime Field Mappings, OR-Expansion & SQL Expressions", () => {
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.sql).toBe(`WHERE ("custom_meta" ?| ARRAY[$1, $2])`)
+    expect(result.value.sql).toBe(`WHERE jsonb_exists_any("custom_meta", ARRAY[$1, $2])`)
   })
 
   // GROUP 3: Operator combinations & OR-expansion combinations
@@ -453,7 +453,7 @@ describe("Runtime Field Mappings, OR-Expansion & SQL Expressions", () => {
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.sql).toBe(`WHERE ("status" NOT IN ($1, $2) OR "col2" NOT IN ($3, $4))`)
+    expect(result.value.sql).toBe(`WHERE ("status" NOT IN ($1, $2) AND "col2" NOT IN ($3, $4))`)
   })
 
   it("handles is_not_null operator with orColumn mapping", () => {
@@ -564,7 +564,7 @@ describe("Runtime Field Mappings, OR-Expansion & SQL Expressions", () => {
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.sql).toBe(`WHERE ("status" != $1 OR "col2" != $2)`)
+    expect(result.value.sql).toBe(`WHERE ("status" != $1 AND "col2" != $2)`)
   })
 
   it("handles === comparison with OR-expansion", () => {
@@ -676,7 +676,7 @@ describe("Runtime Field Mappings, OR-Expansion & SQL Expressions", () => {
     expect(result.value.sql).toBe(`WHERE "verifyStatus" = $1`)
   })
 
-  it("handles override containing spaces only", () => {
+  it("rejects whitespace-only fieldMappings value", () => {
     const converter = createConverter(schema, { dialect: "postgres" })
     const result = converter.toSQL({
       rule: { "==": [{ var: "verifyStatus" }, "active"] },
@@ -684,9 +684,7 @@ describe("Runtime Field Mappings, OR-Expansion & SQL Expressions", () => {
         verifyStatus: "   ",
       },
     })
-    expect(result.ok).toBe(true)
-    if (!result.ok) return
-    expect(result.value.sql).toBe(`WHERE     = $1`)
+    expect(result.ok).toBe(false)
   })
 
   it("handles mapping to a subquery", () => {

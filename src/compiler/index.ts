@@ -47,15 +47,22 @@ export function compile(
   let sortSql = ""
   const orderFields: OrderField[] = []
 
-  if (sort && sort.length > 0 && schema) {
+  if (sort && Array.isArray(sort) && sort.length > 0 && schema) {
     const orderCols = sort.map(({ field, direction }) => {
       const def = schema[field]
-      const colName = def?.internal?.column ?? def?.columnName ?? field
+      const internalIsRaw = def?.internal?.column && /[\s(:]/.test(def.internal.column)
+      const simpleColumn = def?.column && !/[\s(:]/.test(def.column) ? def.column : undefined
+      const colName = (def?.internal?.column && !internalIsRaw ? def.internal.column : undefined) ?? def?.columnName ?? simpleColumn ?? field
       const tablePrefix = def?.internal?.alias ?? def?.internal?.table
       const dir = direction.toLowerCase() === "desc" ? "DESC" : "ASC"
       orderFields.push({ column: colName, direction: dir })
-      const fieldObj: { columnName: string; tableName?: string; jsonPath?: string[]; fieldType?: FieldType } = {
+      const sqlExpr = def?.sqlExpression ?? (internalIsRaw ? def?.internal?.column : undefined) ?? (def?.column && /[\s(:]/.test(def.column) ? def.column : undefined)
+
+      const fieldObj: { columnName: string; tableName?: string; jsonPath?: string[]; fieldType?: FieldType; sqlExpression?: string } = {
         columnName: colName,
+      }
+      if (sqlExpr !== undefined) {
+        fieldObj.sqlExpression = sqlExpr
       }
       if (tablePrefix !== undefined) {
         fieldObj.tableName = tablePrefix

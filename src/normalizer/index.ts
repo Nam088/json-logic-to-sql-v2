@@ -10,9 +10,12 @@ function resolveRef(
   fieldType?: FieldType
   sqlExpression?: string
   orExpression?: string | string[]
+  arrayOf?: FieldType
 } {
   const def = schema[fieldName]
-  const columnName = def?.internal?.column ?? def?.columnName ?? fieldName
+  const internalIsRaw = def?.internal?.column && /[\s(:]/.test(def.internal.column)
+  const simpleColumn = def?.column && !/[\s(:]/.test(def.column) ? def.column : undefined
+  const columnName = (def?.internal?.column && !internalIsRaw ? def.internal.column : undefined) ?? def?.columnName ?? simpleColumn ?? fieldName
   const tablePrefix = def?.internal?.alias ?? def?.internal?.table
 
   const result: {
@@ -22,6 +25,7 @@ function resolveRef(
     fieldType?: FieldType
     sqlExpression?: string
     orExpression?: string | string[]
+    arrayOf?: FieldType
   } = {
     columnName,
   }
@@ -34,8 +38,13 @@ function resolveRef(
   if (def?.type !== undefined) {
     result.fieldType = def.type
   }
+  if (def?.constraints?.arrayOf !== undefined) {
+    result.arrayOf = def.constraints.arrayOf
+  }
   if (def?.sqlExpression !== undefined) {
     result.sqlExpression = def.sqlExpression
+  } else if (def?.internal?.column !== undefined && internalIsRaw) {
+    result.sqlExpression = def.internal.column
   } else if (def?.column !== undefined && /[\s(:]/.test(def.column)) {
     result.sqlExpression = def.column
   }
@@ -49,8 +58,9 @@ function resolveRef(
 }
 
 function wrapOrExpression<T extends AstNode>(
-  ref: { columnName: string; sqlExpression?: string; orExpression?: string | string[] },
-  createNode: (columnName: string, sqlExpression?: string) => T
+  ref: { columnName: string; sqlExpression?: string; orExpression?: string | string[]; tableName?: string },
+  createNode: (columnName: string, sqlExpression?: string) => T,
+  logicalOp: "and" | "or" = "or"
 ): AstNode {
   if (ref.orExpression) {
     const exprs = Array.isArray(ref.orExpression) ? ref.orExpression : [ref.orExpression]
@@ -59,14 +69,21 @@ function wrapOrExpression<T extends AstNode>(
     ]
     for (const expr of exprs) {
       const isRaw = /[\s(:]/.test(expr)
-      if (isRaw) {
-        children.push(createNode(expr, expr))
-      } else {
-        children.push(createNode(expr, undefined))
+      const childNode = isRaw ? createNode(expr, expr) : createNode(expr, undefined)
+      if (childNode && "jsonPath" in childNode) {
+        delete (childNode as any).jsonPath
       }
+      if (!isRaw && expr.includes(".") && childNode) {
+        const parts = expr.split(".")
+        if (parts.length === 2) {
+          ;(childNode as any).tableName = parts[0]
+          ;(childNode as any).columnName = parts[1]
+        }
+      }
+      children.push(childNode)
     }
     return {
-      type: "or",
+      type: logicalOp,
       children,
     }
   }
@@ -148,6 +165,7 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
       }
 
       const ref = resolveRef(fieldName, schema)
+      const isNegated = op === "!=" || op === "!=="
       return wrapOrExpression(ref, (columnName, sqlExpression) => ({
         type: "comparison",
         operator: op as "==" | "===" | "!=" | "!==" | ">" | ">=" | "<" | "<=",
@@ -157,7 +175,7 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
         sqlExpression,
         orExpression: undefined,
         value,
-      }))
+      }), isNegated ? "and" : "or")
     }
 
     case "in":
@@ -165,16 +183,17 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
       const [varNode] = args as [{ var: string }]
       const fieldName = varNode.var
       const ref = resolveRef(fieldName, schema)
+      const isNegated = op === "not_in"
       return wrapOrExpression(ref, (columnName, sqlExpression) => ({
         type: "in",
-        negated: op === "not_in",
+        negated: isNegated,
         field: fieldName,
         ...ref,
         columnName,
         sqlExpression,
         orExpression: undefined,
         values: normalizeValues(extractRawValues(args as unknown[]), schema),
-      }))
+      }), isNegated ? "and" : "or")
     }
 
     case "between": {
@@ -213,9 +232,29 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
     case "endsWith":
     case "like":
     case "ilike": {
-      const [varNode, value] = args as [{ var: string }, string]
+      const [varNode, rightVal] = args as [{ var: string }, unknown]
       const fieldName = varNode.var
+
+      let value: Primitive | FieldRefNode
+      if (
+        typeof rightVal === "object" &&
+        rightVal !== null &&
+        "var" in rightVal &&
+        typeof (rightVal as any).var === "string"
+      ) {
+        const targetFieldName = (rightVal as { var: string }).var
+        const ref = resolveRef(targetFieldName, schema)
+        value = {
+          type: "field",
+          field: targetFieldName,
+          ...ref,
+        }
+      } else {
+        value = rightVal as Primitive
+      }
+
       const ref = resolveRef(fieldName, schema)
+      const isNegated = op === "not_contains"
       return wrapOrExpression(ref, (columnName, sqlExpression) => ({
         type: "like",
         operator: op as "contains" | "not_contains" | "startsWith" | "endsWith" | "like" | "ilike",
@@ -224,8 +263,8 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
         columnName,
         sqlExpression,
         orExpression: undefined,
-        value,
-      }))
+        value: value as string | FieldRefNode,
+      }), isNegated ? "and" : "or")
     }
 
     case "is_null":
@@ -233,15 +272,16 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
       const varNode = Array.isArray(args) ? (args as unknown[])[0] : args
       const fieldName = (varNode as { var: string }).var
       const ref = resolveRef(fieldName, schema)
+      const isNegated = op === "is_not_null"
       return wrapOrExpression(ref, (columnName, sqlExpression) => ({
         type: "null_check",
-        negated: op === "is_not_null",
+        negated: isNegated,
         field: fieldName,
         ...ref,
         columnName,
         sqlExpression,
         orExpression: undefined,
-      }))
+      }), isNegated ? "or" : "and")
     }
 
     case "has_any":

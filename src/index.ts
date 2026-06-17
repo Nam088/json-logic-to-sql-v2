@@ -108,7 +108,17 @@ export type Converter = {
  */
 export function toPublicSchema(schema: FieldSchema): FieldSchema {
   function cleanDef(def: any): any {
-    const { internal: _, columnName: __, validate: ___, properties, ...pub } = def
+    const {
+      internal: _,
+      columnName: __,
+      column: ___,
+      orColumn: ____,
+      sqlExpression: _____,
+      orExpression: ______,
+      validate: _______,
+      properties,
+      ...pub
+    } = def
     if (properties) {
       const cleanProps: Record<string, any> = {}
       for (const [k, v] of Object.entries(properties)) {
@@ -208,11 +218,44 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
           sort = sortOrOptions.sort
           pag = sortOrOptions.pagination
           fieldMappings = sortOrOptions.fieldMappings
+        } else if (sortOrOptions !== undefined && sortOrOptions !== null) {
+          return {
+            ok: false,
+            errors: [
+              {
+                path: "sort",
+                message: "Sort parameter must be an array of sort rules",
+                code: "INVALID_STRUCTURE",
+              },
+            ],
+          }
         }
       }
 
       let activeSchema = flatSchema
       if (fieldMappings && Object.keys(fieldMappings).length > 0) {
+        for (const [field, mapping] of Object.entries(fieldMappings)) {
+          if (!(field in flatSchema)) {
+            return {
+              ok: false,
+              errors: [{ path: `fieldMappings.${field}`, message: `Field "${field}" does not exist in the schema`, code: "FIELD_NOT_ALLOWED" }],
+            }
+          }
+          if (typeof mapping === "string" && !mapping.trim()) {
+            return {
+              ok: false,
+              errors: [{ path: `fieldMappings.${field}`, message: `Field mapping for "${field}" must not be blank or whitespace-only`, code: "INVALID_STRUCTURE" }],
+            }
+          }
+          if (mapping && typeof mapping === "object") {
+            if ("column" in mapping && typeof mapping.column === "string" && !mapping.column.trim()) {
+              return {
+                ok: false,
+                errors: [{ path: `fieldMappings.${field}.column`, message: `Field mapping column for "${field}" must not be blank or whitespace-only`, code: "INVALID_STRUCTURE" }],
+              }
+            }
+          }
+        }
         activeSchema = { ...flatSchema }
         for (const [field, mapping] of Object.entries(fieldMappings)) {
           const originalDef = activeSchema[field] || {}
