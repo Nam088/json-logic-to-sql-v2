@@ -181,7 +181,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       if (!result.ok) return
 
       expect(result.value.sql).toBe(
-        'WHERE (CAST("user_data" ->> \'$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lat\"\' AS NUMERIC) > ? AND CAST("user_data" ->> \'$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lng\"\' AS NUMERIC) < ?)'
+        'WHERE (CAST("user_data" ->> \'$."profile"."contacts"."location"."coordinates"."lat"\' AS NUMERIC) > ? AND CAST("user_data" ->> \'$."profile"."contacts"."location"."coordinates"."lng"\' AS NUMERIC) < ?)'
       )
       expect(result.value.params).toEqual([10.5, 106.7])
     })
@@ -502,7 +502,8 @@ describe("Extreme and Complex Logical Scenarios", () => {
       const logic = { "==": [{ var: "id" }, 0] }
       const result = converter.toSQL(logic)
       expect(result.ok).toBe(true)
-      expect(result.value?.params).toEqual([0])
+      if (!result.ok) return
+      expect(result.value.params).toEqual([0])
     })
   })
 
@@ -538,13 +539,15 @@ describe("Extreme and Complex Logical Scenarios", () => {
       const converter = createConverter(customSchema)
       const res = converter.toSQL({ "==": [{ var: "status" }, "active"] })
       expect(res.ok).toBe(true)
-      expect(res.value?.params).toEqual(["active"])
+      if (!res.ok) return
+      expect(res.value.params).toEqual(["active"])
     })
 
     it("rejects invalid values from object allowedValues", () => {
       const converter = createConverter(customSchema)
       const res = converter.toSQL({ "==": [{ var: "status" }, "banned"] })
       expect(res.ok).toBe(false)
+      if (res.ok) return
       expect(res.errors[0]?.code).toBe("VALUE_NOT_IN_ALLOWED_VALUES")
     })
 
@@ -552,6 +555,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       const converter = createConverter(customSchema)
       const res = converter.toSQL({ "==": [{ var: "status" }, "Active"] })
       expect(res.ok).toBe(false)
+      if (res.ok) return
       expect(res.errors[0]?.code).toBe("VALUE_NOT_IN_ALLOWED_VALUES")
     })
 
@@ -559,6 +563,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       const converter = createConverter(customSchema)
       const res = converter.toSQL({ "==": [{ var: "empty_allowed" }, "anything"] })
       expect(res.ok).toBe(false)
+      if (res.ok) return
       expect(res.errors[0]?.code).toBe("VALUE_NOT_IN_ALLOWED_VALUES")
     })
 
@@ -570,6 +575,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
 
       const invalid = converter.toSQL({ in: [{ var: "mixed_type" }, [0, 1, 3]] })
       expect(invalid.ok).toBe(false)
+      if (invalid.ok) return
       expect(invalid.errors[0]?.code).toBe("VALUE_NOT_IN_ALLOWED_VALUES")
     })
 
@@ -637,7 +643,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        'WHERE JSON_OVERLAPS(`user_data`->>\'$.\"profile\".\"tags\"\', JSON_ARRAY(?, `user_data`->>\'$.\"id\"\'))'
+        'WHERE JSON_OVERLAPS(`user_data`->>\'$."profile"."tags"\', JSON_ARRAY(?, `user_data`->>\'$."id"\'))'
       )
       expect(result.value.params).toEqual(["VIP"])
     })
