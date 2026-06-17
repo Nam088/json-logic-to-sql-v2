@@ -1,5 +1,7 @@
 import { describe, it, expect } from "vitest"
 import { createConverter } from "../src/index.js"
+import { compile } from "../src/compiler/index.js"
+import { postgresDialect } from "../src/dialects/postgres.js"
 import type { FieldSchema } from "../src/types.js"
 
 const schema: FieldSchema = {
@@ -74,5 +76,16 @@ describe("Security — injection & abuse prevention", () => {
     if (result.ok) return
     expect(result.errors[0]?.code).toBe("INVALID_STRUCTURE")
     expect(result.errors[0]?.message).toContain('Sort direction must be "asc" or "desc"')
+  })
+
+  it("compiler prevents SQL injection in sort direction even if called directly", () => {
+    const ast = { type: "comparison" as const, operator: "==" as const, field: "name", columnName: "name", value: "Alice" }
+    const sort = [{ field: "name", direction: "desc; DROP TABLE users;" as any }]
+    const sortSchema: FieldSchema = {
+      name: { type: "string", operators: ["=="], sortable: true },
+    }
+    const result = compile(ast, postgresDialect, sort, sortSchema)
+    expect(result.sql).not.toContain("DROP")
+    expect(result.sql).toContain("ASC")
   })
 })
