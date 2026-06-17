@@ -52,7 +52,7 @@ export function compile(
       const def = schema[field]
       const colName = def?.internal?.column ?? def?.columnName ?? field
       const tablePrefix = def?.internal?.alias ?? def?.internal?.table
-      const dir = direction.toUpperCase() as "ASC" | "DESC"
+      const dir = direction.toLowerCase() === "desc" ? "DESC" : "ASC"
       orderFields.push({ column: colName, direction: dir })
       const fieldObj: { columnName: string; tableName?: string; jsonPath?: string[]; fieldType?: FieldType } = {
         columnName: colName,
