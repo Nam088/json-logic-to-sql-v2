@@ -202,6 +202,55 @@ describe("Execute Complex SQL directly on Postgres", () => {
 
     expect(countRes.rows[0].total).toBe(2)
   })
+
+  it("executes queries using runtime fieldMappings and OR-expansions against complex_users Postgres table", async () => {
+    const customSchema: FieldSchema = {
+      userAge: {
+        type: "number",
+        operators: ["==", "between"],
+      },
+      userStatus: {
+        type: "string",
+        operators: ["==", "in"],
+      },
+    }
+
+    const conv = createConverter(customSchema)
+
+    // 1. Test raw SQL expression mapping (UPPER)
+    const result1 = conv.toSQL({
+      rule: { "==": [{ var: "userStatus" }, "ACTIVE"] },
+      fieldMappings: {
+        userStatus: "UPPER(status)",
+      }
+    })
+
+    expect(result1.ok).toBe(true)
+    if (result1.ok) {
+      console.log("POSTGRES FIELD_MAPPING RAW SQL:", result1.value.sql)
+      const res = await client.query(`SELECT * FROM complex_users ${result1.value.sql}`, result1.value.params)
+      // active, active, active, active, active -> 5 rows
+      expect(res.rows).toHaveLength(6)
+    }
+
+    // 2. Test OR-expansion mapping with multiple columns
+    const result2 = conv.toSQL({
+      rule: { between: [{ var: "userAge" }, 25, 30] },
+      fieldMappings: {
+        userAge: {
+          column: "age",
+          orColumn: ["salary / 100"]
+        }
+      }
+    })
+
+    expect(result2.ok).toBe(true)
+    if (result2.ok) {
+      console.log("POSTGRES FIELD_MAPPING OR-EXPANSION SQL:", result2.value.sql)
+      const res = await client.query(`SELECT * FROM complex_users ${result2.value.sql}`, result2.value.params)
+      expect(res.rows.length).toBeGreaterThan(0)
+    }
+  })
 })
 
 describe("Execute JSON Path SQL directly on Postgres", () => {
