@@ -48,3 +48,6 @@ pnpm-debug.log*
 .parcel-cache/
 .cache/
 temp/
+.codegraph/
+.serena/
+
