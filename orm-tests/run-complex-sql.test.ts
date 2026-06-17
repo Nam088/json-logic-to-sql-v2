@@ -222,8 +222,8 @@ describe("Execute JSON Path SQL directly on Postgres", () => {
 
     await client.query(`
       INSERT INTO json_users (name, metadata) VALUES
-      ('Alice', '{"profile": {"age": 25, "vip": true, "email": "alice@company.com", "tags": ["admin", "user"]}, "settings": {"theme": "dark"}}'),
-      ('Bob', '{"profile": {"age": 17, "vip": false, "email": "bob@company.com", "tags": ["user"]}}'),
+      ('Alice', '{"profile": {"age": 25, "vip": true, "email": "alice@company.com", "tags": ["admin", "user"], "scores": [10, 20]}, "settings": {"theme": "dark"}}'),
+      ('Bob', '{"profile": {"age": 17, "vip": false, "email": "bob@company.com", "tags": ["user"], "scores": [30]}}'),
       ('Charlie', '{"profile": {"age": 30, "vip": true, "email": "charlie@company.com", "tags": ["guest"]}, "preferences": {"lang": "en"}}');
     `)
   })
@@ -307,6 +307,12 @@ describe("Execute JSON Path SQL directly on Postgres", () => {
         columnName: "metadata",
         jsonPath: ["profile", "tags"],
       },
+      "user.profile.scores": {
+        type: "array",
+        operators: ["has_any"],
+        columnName: "metadata",
+        jsonPath: ["profile", "scores"],
+      },
     }
     const conv = createConverter(jsonSchema)
 
@@ -331,6 +337,18 @@ describe("Execute JSON Path SQL directly on Postgres", () => {
       // Only Alice has both admin and user
       expect(res2.rows).toHaveLength(1)
       expect(res2.rows[0].name).toBe("Alice")
+    }
+
+    // 3. Test has_any with numeric array in JSON
+    const r3 = conv.toSQL({ has_any: [{ var: "user.profile.scores" }, [10, 30]] })
+    expect(r3.ok).toBe(true)
+    if (r3.ok) {
+      console.log("POSTGRES HAS_ANY NUMERIC NESTED SQL:", r3.value.sql)
+      const res3 = await client.query(`SELECT * FROM json_users ${r3.value.sql}`, r3.value.params)
+      // Alice (has 10) and Bob (has 30)
+      expect(res3.rows).toHaveLength(2)
+      const names = res3.rows.map((r) => r.name).sort()
+      expect(names).toEqual(["Alice", "Bob"])
     }
   })
 })

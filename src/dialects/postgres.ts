@@ -58,31 +58,75 @@ export const postgresDialect: Dialect = {
 
       case "array_op": {
         const isJson = !!(node.jsonPath && node.jsonPath.length > 0)
-        const placeholders = node.values
-          .map((v, i) => {
-            if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
-              return compileField(v as any, ctx.dialect)
-            } else {
-              const p = ctx.addParam(v as Primitive, `${node.field}_${i}`)
-              if (isJson) {
-                const sqlCast = typeof v === "number" ? "::numeric"
-                  : typeof v === "boolean" ? "::boolean"
-                  : "::text"
-                return `${p}${sqlCast}`
-              }
-              return p
-            }
-          })
-          .join(", ")
         if (isJson) {
           if (node.operator === "has_any") {
-            return `${col} ?| ARRAY[${placeholders}]`
-          } else if (node.operator === "has_all") {
-            return `${col} @> jsonb_build_array(${placeholders})`
+            const isStringLike = (v: any): boolean => {
+              if (typeof v === "string") return true
+              if (typeof v === "object" && v !== null && v.type === "field") {
+                return v.fieldType !== "number" && v.fieldType !== "boolean"
+              }
+              return false
+            }
+            const allStrings = node.values.every(isStringLike)
+            if (allStrings) {
+              const placeholders = node.values
+                .map((v, i) => {
+                  if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
+                    return compileField(v as any, ctx.dialect)
+                  } else {
+                    const p = ctx.addParam(v as Primitive, `${node.field}_${i}`)
+                    return `${p}::text`
+                  }
+                })
+                .join(", ")
+              return `${col} ?| ARRAY[${placeholders}]`
+            } else {
+              const conditions = node.values
+                .map((v, i) => {
+                  if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
+                    const targetCol = compileField(v as any, ctx.dialect)
+                    return `${col} @> jsonb_build_array(${targetCol})`
+                  } else {
+                    const p = ctx.addParam(v as Primitive, `${node.field}_${i}`)
+                    const sqlCast = typeof v === "number" ? "::numeric"
+                      : typeof v === "boolean" ? "::boolean"
+                      : "::text"
+                    return `${col} @> jsonb_build_array(${p}${sqlCast})`
+                  }
+                })
+                .join(" OR ")
+              return `(${conditions})`
+            }
           } else {
-            return `${col} <@ jsonb_build_array(${placeholders})`
+            const placeholders = node.values
+              .map((v, i) => {
+                if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
+                  return compileField(v as any, ctx.dialect)
+                } else {
+                  const p = ctx.addParam(v as Primitive, `${node.field}_${i}`)
+                  const sqlCast = typeof v === "number" ? "::numeric"
+                    : typeof v === "boolean" ? "::boolean"
+                    : "::text"
+                  return `${p}${sqlCast}`
+                }
+              })
+              .join(", ")
+            if (node.operator === "has_all") {
+              return `${col} @> jsonb_build_array(${placeholders})`
+            } else {
+              return `${col} <@ jsonb_build_array(${placeholders})`
+            }
           }
         } else {
+          const placeholders = node.values
+            .map((v, i) => {
+              if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
+                return compileField(v as any, ctx.dialect)
+              } else {
+                return ctx.addParam(v as Primitive, `${node.field}_${i}`)
+              }
+            })
+            .join(", ")
           if (node.operator === "has_any") {
             return `${col} && ARRAY[${placeholders}]`
           } else if (node.operator === "has_all") {
