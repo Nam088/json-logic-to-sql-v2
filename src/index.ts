@@ -8,7 +8,7 @@ import { mysqlDialect, mysqlNamedDialect } from "./dialects/mysql.js"
 import { sqliteDialect, sqliteNamedDialect } from "./dialects/sqlite.js"
 import { mssqlDialect, mssqlNamedDialect } from "./dialects/mssql.js"
 import type { Dialect } from "./dialects/interface.js"
-import type { FieldSchema, Query, Result, SortRule, ValidationError, PaginationRule } from "./types.js"
+import type { FieldSchema, Query, Result, SortRule, ValidationError, PaginationRule, FieldDef } from "./types.js"
 
 export type {
   FieldSchema,
@@ -76,6 +76,7 @@ export type ConverterOptions = {
 export type ToSQLOptions = {
   sort?: SortRule[]
   pagination?: PaginationRule
+  fieldMappings?: Record<string, string | Partial<FieldDef>>
 }
 
 export type ToSQLSingleObject = {
@@ -83,6 +84,7 @@ export type ToSQLSingleObject = {
   logic?: unknown
   sort?: SortRule[]
   pagination?: PaginationRule
+  fieldMappings?: Record<string, string | Partial<FieldDef>>
 }
 
 export type Converter = {
@@ -175,14 +177,15 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
       let rule: unknown = jsonLogicOrObj
       let sort: SortRule[] | undefined = undefined
       let pag: PaginationRule | undefined = pagination
+      let fieldMappings: Record<string, string | Partial<FieldDef>> | undefined = undefined
 
-      // Single-object signature: { rule?, logic?, sort?, pagination? }
+      // Single-object signature: { rule?, logic?, sort?, pagination?, fieldMappings? }
       // Detection: all keys must be known single-object keys (prevents misidentifying a JSON Logic
       // node whose operator happens to be named "rule" or "logic" with extra unknown keys).
       // Known limitation: { rule: [{ var: "field" }, value] } is ambiguous when "rule" is a custom
       // operator — avoid naming custom operators "rule" or "logic" to prevent this.
       // Keep in sync with ToSQLSingleObject interface keys when adding new top-level keys.
-      const SINGLE_OBJ_KEYS = new Set(["rule", "logic", "sort", "pagination"])
+      const SINGLE_OBJ_KEYS = new Set(["rule", "logic", "sort", "pagination", "fieldMappings"])
       if (
         jsonLogicOrObj &&
         typeof jsonLogicOrObj === "object" &&
@@ -196,6 +199,7 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
         rule = obj.rule !== undefined ? obj.rule : obj.logic
         sort = obj.sort
         pag = obj.pagination
+        fieldMappings = obj.fieldMappings
       } else {
         // Traditional signatures
         if (Array.isArray(sortOrOptions)) {
@@ -203,18 +207,50 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
         } else if (sortOrOptions && typeof sortOrOptions === "object") {
           sort = sortOrOptions.sort
           pag = sortOrOptions.pagination
+          fieldMappings = sortOrOptions.fieldMappings
         }
       }
 
-      const errors: ValidationError[] = validate(rule, flatSchema, registry, { maxDepth, sortEnabled, dialect }, sort, pag)
+      let activeSchema = flatSchema
+      if (fieldMappings && Object.keys(fieldMappings).length > 0) {
+        activeSchema = { ...flatSchema }
+        for (const [field, mapping] of Object.entries(fieldMappings)) {
+          const originalDef = activeSchema[field] || {}
+          let enrichedDef: FieldDef = { ...originalDef }
+          if (typeof mapping === "string") {
+            const isRaw = /[\s(:]/.test(mapping)
+            if (isRaw) {
+              enrichedDef.sqlExpression = mapping
+            } else {
+              enrichedDef.columnName = mapping
+            }
+          } else if (mapping && typeof mapping === "object") {
+            enrichedDef = { ...enrichedDef, ...mapping }
+            if (mapping.column) {
+              const isRaw = /[\s(:]/.test(mapping.column)
+              if (isRaw) {
+                enrichedDef.sqlExpression = mapping.column
+              } else {
+                enrichedDef.columnName = mapping.column
+              }
+            }
+            if (mapping.orColumn) {
+              enrichedDef.orExpression = mapping.orColumn
+            }
+          }
+          activeSchema[field] = enrichedDef
+        }
+      }
+
+      const errors: ValidationError[] = validate(rule, activeSchema, registry, { maxDepth, sortEnabled, dialect }, sort, pag)
 
       if (errors.length > 0) {
         return { ok: false, errors }
       }
 
       try {
-        const ast = normalize(rule, flatSchema)
-        const query = compile(ast, dialect, sort, flatSchema, prefix, pag, registry)
+        const ast = normalize(rule, activeSchema)
+        const query = compile(ast, dialect, sort, activeSchema, prefix, pag, registry)
         return { ok: true, value: query }
       } catch (err) {
         return {

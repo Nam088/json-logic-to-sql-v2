@@ -15,7 +15,13 @@ import type { FieldType, AstNode, Primitive } from "../types.js"
  * // Postgres, with table prefix:
  * buildBaseColumn({ columnName: "name", tableName: "users" }, postgresDialect) // → `"users"."name"`
  */
-export function buildBaseColumn(n: { columnName: string; tableName?: string }, dialect: Dialect): string {
+export function buildBaseColumn(
+  n: { columnName: string; tableName?: string; sqlExpression?: string },
+  dialect: Dialect
+): string {
+  if (n.sqlExpression) {
+    return n.sqlExpression
+  }
   return n.tableName
     ? `${dialect.quoteIdentifier(n.tableName)}.${dialect.quoteIdentifier(n.columnName)}`
     : dialect.quoteIdentifier(n.columnName)
@@ -69,13 +75,14 @@ export type FieldNodeBase = {
   tableName?: string
   jsonPath?: string[]
   fieldType?: FieldType
+  sqlExpression?: string
 }
 
 /**
  * Compiles a field reference to SQL, handling table prefixes, JSON path querying, and casting.
  */
 export function compileField(
-  n: { columnName: string; tableName?: string; jsonPath?: string[]; fieldType?: FieldType },
+  n: { columnName: string; tableName?: string; jsonPath?: string[]; fieldType?: FieldType; sqlExpression?: string },
   dialect: Dialect
 ): string {
   const baseCol = buildBaseColumn(n, dialect)

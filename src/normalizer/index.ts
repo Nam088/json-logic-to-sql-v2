@@ -3,12 +3,26 @@ import type { AstNode, FieldSchema, JsonLogicNode, Primitive, FieldType, FieldRe
 function resolveRef(
   fieldName: string,
   schema: FieldSchema
-): { columnName: string; tableName?: string; jsonPath?: string[]; fieldType?: FieldType } {
+): {
+  columnName: string
+  tableName?: string
+  jsonPath?: string[]
+  fieldType?: FieldType
+  sqlExpression?: string
+  orExpression?: string | string[]
+} {
   const def = schema[fieldName]
   const columnName = def?.internal?.column ?? def?.columnName ?? fieldName
   const tablePrefix = def?.internal?.alias ?? def?.internal?.table
 
-  const result: { columnName: string; tableName?: string; jsonPath?: string[]; fieldType?: FieldType } = {
+  const result: {
+    columnName: string
+    tableName?: string
+    jsonPath?: string[]
+    fieldType?: FieldType
+    sqlExpression?: string
+    orExpression?: string | string[]
+  } = {
     columnName,
   }
   if (tablePrefix !== undefined) {
@@ -20,7 +34,43 @@ function resolveRef(
   if (def?.type !== undefined) {
     result.fieldType = def.type
   }
+  if (def?.sqlExpression !== undefined) {
+    result.sqlExpression = def.sqlExpression
+  } else if (def?.column !== undefined && /[\s(:]/.test(def.column)) {
+    result.sqlExpression = def.column
+  }
+
+  if (def?.orExpression !== undefined) {
+    result.orExpression = def.orExpression
+  } else if (def?.orColumn !== undefined) {
+    result.orExpression = def.orColumn
+  }
   return result
+}
+
+function wrapOrExpression<T extends AstNode>(
+  ref: { columnName: string; sqlExpression?: string; orExpression?: string | string[] },
+  createNode: (columnName: string, sqlExpression?: string) => T
+): AstNode {
+  if (ref.orExpression) {
+    const exprs = Array.isArray(ref.orExpression) ? ref.orExpression : [ref.orExpression]
+    const children = [
+      createNode(ref.columnName, ref.sqlExpression)
+    ]
+    for (const expr of exprs) {
+      const isRaw = /[\s(:]/.test(expr)
+      if (isRaw) {
+        children.push(createNode(expr, expr))
+      } else {
+        children.push(createNode(expr, undefined))
+      }
+    }
+    return {
+      type: "or",
+      children,
+    }
+  }
+  return createNode(ref.columnName, ref.sqlExpression)
 }
 
 function extractRawValues(args: unknown[]): unknown[] {
@@ -97,26 +147,34 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
         value = rightVal as Primitive
       }
 
-      return {
+      const ref = resolveRef(fieldName, schema)
+      return wrapOrExpression(ref, (columnName, sqlExpression) => ({
         type: "comparison",
         operator: op as "==" | "===" | "!=" | "!==" | ">" | ">=" | "<" | "<=",
         field: fieldName,
-        ...resolveRef(fieldName, schema),
+        ...ref,
+        columnName,
+        sqlExpression,
+        orExpression: undefined,
         value,
-      }
+      }))
     }
 
     case "in":
     case "not_in": {
       const [varNode] = args as [{ var: string }]
       const fieldName = varNode.var
-      return {
+      const ref = resolveRef(fieldName, schema)
+      return wrapOrExpression(ref, (columnName, sqlExpression) => ({
         type: "in",
         negated: op === "not_in",
         field: fieldName,
-        ...resolveRef(fieldName, schema),
+        ...ref,
+        columnName,
+        sqlExpression,
+        orExpression: undefined,
         values: normalizeValues(extractRawValues(args as unknown[]), schema),
-      }
+      }))
     }
 
     case "between": {
@@ -136,13 +194,17 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
         return v as Primitive
       }
 
-      return {
+      const ref = resolveRef(fieldName, schema)
+      return wrapOrExpression(ref, (columnName, sqlExpression) => ({
         type: "between",
         field: fieldName,
-        ...resolveRef(fieldName, schema),
+        ...ref,
+        columnName,
+        sqlExpression,
+        orExpression: undefined,
         min: normalizeVal(minVal),
         max: normalizeVal(maxVal),
-      }
+      }))
     }
 
     case "contains":
@@ -153,20 +215,33 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
     case "ilike": {
       const [varNode, value] = args as [{ var: string }, string]
       const fieldName = varNode.var
-      return {
+      const ref = resolveRef(fieldName, schema)
+      return wrapOrExpression(ref, (columnName, sqlExpression) => ({
         type: "like",
         operator: op as "contains" | "not_contains" | "startsWith" | "endsWith" | "like" | "ilike",
         field: fieldName,
-        ...resolveRef(fieldName, schema),
+        ...ref,
+        columnName,
+        sqlExpression,
+        orExpression: undefined,
         value,
-      }
+      }))
     }
 
     case "is_null":
     case "is_not_null": {
       const varNode = Array.isArray(args) ? (args as unknown[])[0] : args
       const fieldName = (varNode as { var: string }).var
-      return { type: "null_check", negated: op === "is_not_null", field: fieldName, ...resolveRef(fieldName, schema) }
+      const ref = resolveRef(fieldName, schema)
+      return wrapOrExpression(ref, (columnName, sqlExpression) => ({
+        type: "null_check",
+        negated: op === "is_not_null",
+        field: fieldName,
+        ...ref,
+        columnName,
+        sqlExpression,
+        orExpression: undefined,
+      }))
     }
 
     case "has_any":
@@ -174,37 +249,49 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
     case "contained_by": {
       const [varNode] = args as [{ var: string }]
       const fieldName = varNode.var
-      return {
+      const ref = resolveRef(fieldName, schema)
+      return wrapOrExpression(ref, (columnName, sqlExpression) => ({
         type: "array_op",
         operator: op as "has_any" | "has_all" | "contained_by",
         field: fieldName,
-        ...resolveRef(fieldName, schema),
+        ...ref,
+        columnName,
+        sqlExpression,
+        orExpression: undefined,
         values: normalizeValues(extractRawValues(args as unknown[]), schema),
-      }
+      }))
     }
 
     case "json_has_key": {
       const [varNode, value] = args as [{ var: string }, Primitive]
       const fieldName = varNode.var
-      return {
+      const ref = resolveRef(fieldName, schema)
+      return wrapOrExpression(ref, (columnName, sqlExpression) => ({
         type: "json_op",
         operator: "json_has_key",
         field: fieldName,
-        ...resolveRef(fieldName, schema),
+        ...ref,
+        columnName,
+        sqlExpression,
+        orExpression: undefined,
         values: [value],
-      }
+      }))
     }
 
     case "json_has_any_keys": {
       const [varNode] = args as [{ var: string }]
       const fieldName = varNode.var
-      return {
+      const ref = resolveRef(fieldName, schema)
+      return wrapOrExpression(ref, (columnName, sqlExpression) => ({
         type: "json_op",
         operator: "json_has_any_keys",
         field: fieldName,
-        ...resolveRef(fieldName, schema),
+        ...ref,
+        columnName,
+        sqlExpression,
+        orExpression: undefined,
         values: extractRawValues(args as unknown[]) as Primitive[],
-      }
+      }))
     }
 
     default: {
@@ -222,13 +309,17 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
       }
       const fieldName = (varNode as { var: string }).var
       const values = args.slice(1)
-      return {
+      const ref = resolveRef(fieldName, schema)
+      return wrapOrExpression(ref, (columnName, sqlExpression) => ({
         type: "custom_op",
         operator: op,
         field: fieldName,
-        ...resolveRef(fieldName, schema),
+        ...ref,
+        columnName,
+        sqlExpression,
+        orExpression: undefined,
         values,
-      }
+      }))
     }
   }
 }
