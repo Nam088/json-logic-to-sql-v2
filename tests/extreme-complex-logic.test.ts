@@ -648,4 +648,40 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(result.value.params).toEqual(["VIP"])
     })
   })
+
+  describe("Early Schema Validation (Invalid Regex Pattern)", () => {
+    it("throws an error when schema initialization encounters an invalid regex pattern at root", () => {
+      const invalidSchema: FieldSchema = {
+        bad_field: {
+          type: "string",
+          operators: ["=="],
+          constraints: {
+            pattern: "([a-z]+", // invalid regex (missing closing parenthesis)
+          },
+        },
+      }
+      expect(() => createConverter(invalidSchema)).toThrowError(
+        'Invalid regex pattern in schema for field "bad_field"'
+      )
+    })
+
+    it("throws an error when schema encounters an invalid regex pattern in nested properties", () => {
+      const invalidNestedSchema: FieldSchema = {
+        user: {
+          properties: {
+            bad_nested: {
+              type: "string",
+              operators: ["=="],
+              constraints: {
+                pattern: "[0-9++", // invalid regex
+              },
+            },
+          },
+        },
+      }
+      expect(() => createConverter(invalidNestedSchema)).toThrowError(
+        'Invalid regex pattern in schema for field "user.bad_nested"'
+      )
+    })
+  })
 })

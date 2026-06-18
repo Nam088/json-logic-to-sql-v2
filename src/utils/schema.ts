@@ -50,6 +50,14 @@ export function flattenSchema(schema: FieldSchema): FieldSchema {
         ...def.internal,
       }
 
+      if (def.constraints?.pattern !== undefined) {
+        try {
+          new RegExp(def.constraints.pattern)
+        } catch (err) {
+          throw new Error(`Invalid regex pattern in schema for field "${logicalPath}": ${err instanceof Error ? err.message : String(err)}`, { cause: err })
+        }
+      }
+
       if (def.properties) {
         if (def.operators) {
           const flatDef: FieldDef = {
@@ -79,6 +87,13 @@ export function flattenSchema(schema: FieldSchema): FieldSchema {
 
   for (const [key, def] of Object.entries(schema)) {
     if (!def || typeof def !== "object") continue
+    if (def.constraints?.pattern !== undefined) {
+      try {
+        new RegExp(def.constraints.pattern)
+      } catch (err) {
+        throw new Error(`Invalid regex pattern in schema for field "${key}": ${err instanceof Error ? err.message : String(err)}`, { cause: err })
+      }
+    }
     if (def.properties) {
       const columnName = def.columnName || def.column || def.internal?.column || key
       const jsonPathPrefix = def.jsonPath || []

@@ -252,7 +252,7 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
             const keysToCheck = ["column", "columnName", "orColumn", "sqlExpression", "orExpression"]
             for (const key of keysToCheck) {
               if (key in mapping) {
-                const val = (mapping as any)[key]
+                const val = (mapping as Record<string, unknown>)[key]
                 if (typeof val === "string" && !val.trim()) {
                   return {
                     ok: false,

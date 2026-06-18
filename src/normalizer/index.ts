@@ -1,4 +1,4 @@
-import type { AstNode, FieldSchema, JsonLogicNode, Primitive, FieldType, FieldRefNode } from "../types.js"
+import type { AstNode, FieldSchema, JsonLogicNode, Primitive, FieldType, FieldRefNode, LeafNodeBase, JsonLogicVar } from "../types.js"
 
 function resolveRef(
   fieldName: string,
@@ -70,14 +70,15 @@ function wrapOrExpression<T extends AstNode>(
     for (const expr of exprs) {
       const isRaw = /[\s(:]/.test(expr)
       const childNode = isRaw ? createNode(expr, expr) : createNode(expr, undefined)
-      if (childNode && "jsonPath" in childNode) {
-        delete (childNode as any).jsonPath
+      const leaf = childNode as LeafNodeBase & { columnName?: string }
+      if (leaf && "jsonPath" in leaf) {
+        delete leaf.jsonPath
       }
-      if (!isRaw && expr.includes(".") && childNode) {
+      if (!isRaw && expr.includes(".") && leaf) {
         const parts = expr.split(".")
         if (parts.length === 2) {
-          ;(childNode as any).tableName = parts[0]
-          ;(childNode as any).columnName = parts[1]
+          leaf.tableName = parts[0]!
+          leaf.columnName = parts[1]!
         }
       }
       children.push(childNode)
@@ -143,17 +144,12 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
     case ">=":
     case "<":
     case "<=": {
-      const [varNode, rightVal] = (args as any) as [{ var: string }, unknown]
+      const [varNode, rightVal] = args as [JsonLogicVar, unknown]
       const fieldName = varNode.var
 
       let value: Primitive | FieldRefNode
-      if (
-        typeof rightVal === "object" &&
-        rightVal !== null &&
-        "var" in rightVal &&
-        typeof (rightVal as any).var === "string"
-      ) {
-        const targetFieldName = (rightVal as { var: string }).var
+      if (isVarNode(rightVal)) {
+        const targetFieldName = rightVal.var
         const ref = resolveRef(targetFieldName, schema)
         value = {
           type: "field",
@@ -232,17 +228,12 @@ export function normalize(node: unknown, schema: FieldSchema): AstNode {
     case "endsWith":
     case "like":
     case "ilike": {
-      const [varNode, rightVal] = args as [{ var: string }, unknown]
+      const [varNode, rightVal] = args as [JsonLogicVar, unknown]
       const fieldName = varNode.var
 
       let value: Primitive | FieldRefNode
-      if (
-        typeof rightVal === "object" &&
-        rightVal !== null &&
-        "var" in rightVal &&
-        typeof (rightVal as any).var === "string"
-      ) {
-        const targetFieldName = (rightVal as { var: string }).var
+      if (isVarNode(rightVal)) {
+        const targetFieldName = rightVal.var
         const ref = resolveRef(targetFieldName, schema)
         value = {
           type: "field",

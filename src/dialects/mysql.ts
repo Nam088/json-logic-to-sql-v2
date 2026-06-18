@@ -1,5 +1,6 @@
 import type { Dialect, CompileContext } from "./interface.js"
-import type { AstNode, Primitive } from "../types.js"
+import type { AstNode, Primitive, LeafNodeBase, FieldRefNode } from "../types.js"
+import { isFieldRefNode } from "../types.js"
 import { escapeLikePosix, compileCommonNode, compileField, compileStandardPagination } from "./utils.js"
 import { normalizeDateForDB } from "../utils/date.js"
 
@@ -21,7 +22,7 @@ export const mysqlDialect: Dialect = {
   },
 
   compileNode(node: AstNode, ctx: CompileContext): string {
-    const col = "columnName" in node ? compileField(node as any, ctx.dialect, { skipCast: node.type === "null_check" }) : ""
+    const col = "columnName" in node ? compileField(node as LeafNodeBase & { columnName: string }, ctx.dialect, { skipCast: node.type === "null_check" }) : ""
 
     const commonRes = compileCommonNode(node, ctx, col)
     if (commonRes !== null) {
@@ -30,9 +31,9 @@ export const mysqlDialect: Dialect = {
 
     switch (node.type) {
       case "like": {
-        const isField = typeof node.value === "object" && node.value !== null && (node.value as any).type === "field"
+        const isField = isFieldRefNode(node.value)
         if (isField) {
-          const targetCol = compileField(node.value as any, ctx.dialect)
+          const targetCol = compileField(node.value as FieldRefNode, ctx.dialect)
           switch (node.operator) {
             case "contains":     return `${col} LIKE CONCAT('%', ${targetCol}, '%')`
             case "not_contains": return `${col} NOT LIKE CONCAT('%', ${targetCol}, '%')`
@@ -77,14 +78,10 @@ export const mysqlDialect: Dialect = {
       }
 
       case "array_op": {
-        const isFieldRef = node.values.length === 1 &&
-          typeof node.values[0] === "object" &&
-          node.values[0] !== null &&
-          "type" in node.values[0] &&
-          (node.values[0] as any).type === "field";
+        const isFieldRef = node.values.length === 1 && isFieldRefNode(node.values[0])
 
         if (isFieldRef) {
-          const targetCol = compileField(node.values[0] as any, ctx.dialect)
+          const targetCol = compileField(node.values[0] as FieldRefNode, ctx.dialect)
           if (node.operator === "has_any") {
             return `JSON_OVERLAPS(${col}, ${targetCol})`
           } else if (node.operator === "has_all") {
@@ -96,8 +93,8 @@ export const mysqlDialect: Dialect = {
 
         const placeholders = node.values
           .map((v, i) => {
-            if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
-              return compileField(v as any, ctx.dialect)
+            if (isFieldRefNode(v)) {
+              return compileField(v, ctx.dialect)
             } else {
               return ctx.addParam(v as Primitive, `${node.field}_${i}`, node.arrayOf)
             }

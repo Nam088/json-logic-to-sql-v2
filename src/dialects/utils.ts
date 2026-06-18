@@ -1,5 +1,6 @@
 import type { Dialect, CompileContext } from "./interface.js"
 import type { FieldType, AstNode, Primitive } from "../types.js"
+import { isFieldRefNode } from "../types.js"
 
 /**
  * Builds a base SQL column reference with optional table prefix and proper identifier quoting.
@@ -16,7 +17,7 @@ import type { FieldType, AstNode, Primitive } from "../types.js"
  * buildBaseColumn({ columnName: "name", tableName: "users" }, postgresDialect) // → `"users"."name"`
  */
 export function buildBaseColumn(
-  n: { columnName: string; tableName?: string; sqlExpression?: string },
+  n: { columnName: string; tableName?: string | undefined; sqlExpression?: string | undefined },
   dialect: Dialect
 ): string {
   if (n.sqlExpression) {
@@ -82,7 +83,7 @@ export type FieldNodeBase = {
  * Compiles a field reference to SQL, handling table prefixes, JSON path querying, and casting.
  */
 export function compileField(
-  n: { columnName: string; tableName?: string; jsonPath?: string[]; fieldType?: FieldType; sqlExpression?: string },
+  n: { columnName: string; tableName?: string | undefined; jsonPath?: string[] | undefined; fieldType?: FieldType | undefined; sqlExpression?: string | undefined },
   dialect: Dialect,
   options?: { skipCast?: boolean }
 ): string {
@@ -225,8 +226,8 @@ export function compileCommonNode(
           ? "!="
           : node.operator
       const val = node.value
-      if (typeof val === "object" && val !== null && "type" in val && val.type === "field") {
-        const targetCol = compileField(val as any, ctx.dialect)
+      if (isFieldRefNode(val)) {
+        const targetCol = compileField(val, ctx.dialect)
         return `${col} ${op} ${targetCol}`
       } else {
         const p = ctx.addParam(val as Primitive, node.field, node.fieldType)
@@ -237,8 +238,8 @@ export function compileCommonNode(
     case "in": {
       const placeholders = node.values
         .map((v, i) => {
-          if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
-            return compileField(v as any, ctx.dialect)
+          if (isFieldRefNode(v)) {
+            return compileField(v, ctx.dialect)
           } else {
             return ctx.addParam(v as Primitive, `${node.field}_${i}`, node.fieldType)
           }
@@ -249,8 +250,8 @@ export function compileCommonNode(
 
     case "between": {
       const compileBound = (val: typeof node.min, suffix: string) => {
-        if (typeof val === "object" && val !== null && "type" in val && (val as any).type === "field") {
-          return compileField(val as any, ctx.dialect)
+        if (isFieldRefNode(val)) {
+          return compileField(val, ctx.dialect)
         } else {
           return ctx.addParam(val as Primitive, `${node.field}_${suffix}`, node.fieldType)
         }

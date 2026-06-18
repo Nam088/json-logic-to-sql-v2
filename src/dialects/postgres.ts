@@ -1,5 +1,6 @@
 import type { Dialect, CompileContext } from "./interface.js"
-import type { AstNode, Primitive } from "../types.js"
+import type { AstNode, Primitive, LeafNodeBase, FieldRefNode } from "../types.js"
+import { isFieldRefNode } from "../types.js"
 import { escapeLikePosix, compileCommonNode, compileField, compileStandardPagination } from "./utils.js"
 import { normalizeDateForDB } from "../utils/date.js"
 
@@ -17,7 +18,7 @@ export const postgresDialect: Dialect = {
   },
 
   compileNode(node: AstNode, ctx: CompileContext): string {
-    const col = "columnName" in node ? compileField(node as any, ctx.dialect, { skipCast: node.type === "null_check" }) : ""
+    const col = "columnName" in node ? compileField(node as LeafNodeBase & { columnName: string }, ctx.dialect, { skipCast: node.type === "null_check" }) : ""
 
     const commonRes = compileCommonNode(node, ctx, col)
     if (commonRes !== null) {
@@ -26,9 +27,9 @@ export const postgresDialect: Dialect = {
 
     switch (node.type) {
       case "like": {
-        const isField = typeof node.value === "object" && node.value !== null && (node.value as any).type === "field"
+        const isField = isFieldRefNode(node.value)
         if (isField) {
-          const targetCol = compileField(node.value as any, ctx.dialect)
+          const targetCol = compileField(node.value as FieldRefNode, ctx.dialect)
           switch (node.operator) {
             case "contains":     return `${col} LIKE '%' || ${targetCol} || '%'`
             case "not_contains": return `${col} NOT LIKE '%' || ${targetCol} || '%'`
@@ -74,20 +75,17 @@ export const postgresDialect: Dialect = {
 
       case "array_op": {
         const isJson = !!(node.jsonPath && node.jsonPath.length > 0)
-        const isFieldRef = node.values.length === 1 &&
-          typeof node.values[0] === "object" &&
-          node.values[0] !== null &&
-          "type" in node.values[0] &&
-          (node.values[0] as any).type === "field";
+        const isFieldRef = node.values.length === 1 && isFieldRefNode(node.values[0])
 
         if (isJson) {
           if (isFieldRef) {
-            const targetCol = compileField(node.values[0] as any, ctx.dialect)
-            const targetIsArray = (node.values[0] as any).fieldType === "array"
+            const targetNode = node.values[0] as FieldRefNode
+            const targetCol = compileField(targetNode, ctx.dialect)
+            const targetIsArray = targetNode.fieldType === "array"
 
             if (node.operator === "has_any") {
               if (targetIsArray) {
-                const targetIsJson = !!((node.values[0] as any).jsonPath && (node.values[0] as any).jsonPath.length > 0)
+                const targetIsJson = !!(targetNode.jsonPath && targetNode.jsonPath.length > 0)
                 if (targetIsJson) {
                   return `jsonb_exists_any(${col}, ARRAY(SELECT jsonb_array_elements_text(${targetCol})))`
                 } else {
@@ -97,14 +95,14 @@ export const postgresDialect: Dialect = {
                 return `jsonb_exists(${col}, ${targetCol})`
               }
             } else if (node.operator === "has_all") {
-              const targetIsJson = !!((node.values[0] as any).jsonPath && (node.values[0] as any).jsonPath.length > 0)
+              const targetIsJson = !!(targetNode.jsonPath && targetNode.jsonPath.length > 0)
               if (targetIsJson) {
                 return `${col} @> ${targetCol}`
               } else {
                 return `${col} @> to_jsonb(${targetCol})`
               }
             } else {
-              const targetIsJson = !!((node.values[0] as any).jsonPath && (node.values[0] as any).jsonPath.length > 0)
+              const targetIsJson = !!(targetNode.jsonPath && targetNode.jsonPath.length > 0)
               if (targetIsJson) {
                 return `${col} <@ ${targetCol}`
               } else {
@@ -115,7 +113,7 @@ export const postgresDialect: Dialect = {
           if (node.operator === "has_any") {
             const isStringLike = (v: any): boolean => {
               if (typeof v === "string") return true
-              if (typeof v === "object" && v !== null && v.type === "field") {
+              if (isFieldRefNode(v)) {
                 return v.fieldType !== "number" && v.fieldType !== "boolean"
               }
               return false
@@ -124,8 +122,8 @@ export const postgresDialect: Dialect = {
             if (allStrings) {
               const placeholders = node.values
                 .map((v, i) => {
-                  if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
-                    return compileField(v as any, ctx.dialect)
+                  if (isFieldRefNode(v)) {
+                    return compileField(v, ctx.dialect)
                   } else {
                     const p = ctx.addParam(v as Primitive, `${node.field}_${i}`, node.arrayOf)
                     return `${p}::text`
@@ -136,8 +134,8 @@ export const postgresDialect: Dialect = {
             } else {
               const conditions = node.values
                 .map((v, i) => {
-                  if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
-                    const targetCol = compileField(v as any, ctx.dialect)
+                  if (isFieldRefNode(v)) {
+                    const targetCol = compileField(v, ctx.dialect)
                     return `${col} @> jsonb_build_array(${targetCol})`
                   } else {
                     const p = ctx.addParam(v as Primitive, `${node.field}_${i}`, node.arrayOf)
@@ -153,8 +151,8 @@ export const postgresDialect: Dialect = {
           } else {
             const placeholders = node.values
               .map((v, i) => {
-                if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
-                  return compileField(v as any, ctx.dialect)
+                if (isFieldRefNode(v)) {
+                  return compileField(v, ctx.dialect)
                 } else {
                   const p = ctx.addParam(v as Primitive, `${node.field}_${i}`, node.arrayOf)
                   const sqlCast = typeof v === "number" ? "::numeric"
@@ -172,8 +170,9 @@ export const postgresDialect: Dialect = {
           }
         } else {
           if (isFieldRef) {
-            const targetCol = compileField(node.values[0] as any, ctx.dialect)
-            const targetIsJson = !!((node.values[0] as any).jsonPath && (node.values[0] as any).jsonPath.length > 0)
+            const targetNode = node.values[0] as FieldRefNode
+            const targetCol = compileField(targetNode, ctx.dialect)
+            const targetIsJson = !!(targetNode.jsonPath && targetNode.jsonPath.length > 0)
 
             if (node.operator === "has_any") {
               if (targetIsJson) {
@@ -197,8 +196,8 @@ export const postgresDialect: Dialect = {
           }
           const placeholders = node.values
             .map((v, i) => {
-              if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
-                return compileField(v as any, ctx.dialect)
+              if (isFieldRefNode(v)) {
+                return compileField(v, ctx.dialect)
               } else {
                 return ctx.addParam(v as Primitive, `${node.field}_${i}`, node.arrayOf)
               }

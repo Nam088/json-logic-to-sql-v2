@@ -1,5 +1,6 @@
 import type { Dialect, CompileContext } from "./interface.js"
-import type { AstNode } from "../types.js"
+import type { AstNode, LeafNodeBase, FieldRefNode } from "../types.js"
+import { isFieldRefNode } from "../types.js"
 import { escapeLikeMssql, compileCommonNode, compileField } from "./utils.js"
 import { normalizeDateForDB } from "../utils/date.js"
 
@@ -18,7 +19,7 @@ export const mssqlDialect: Dialect = {
   },
 
   compileNode(node: AstNode, ctx: CompileContext): string {
-    const col = "columnName" in node ? compileField(node as any, ctx.dialect, { skipCast: node.type === "null_check" }) : ""
+    const col = "columnName" in node ? compileField(node as LeafNodeBase & { columnName: string }, ctx.dialect, { skipCast: node.type === "null_check" }) : ""
 
     const commonRes = compileCommonNode(node, ctx, col)
     if (commonRes !== null) {
@@ -27,9 +28,9 @@ export const mssqlDialect: Dialect = {
 
     switch (node.type) {
       case "like": {
-        const isField = typeof node.value === "object" && node.value !== null && (node.value as any).type === "field"
+        const isField = isFieldRefNode(node.value)
         if (isField) {
-          const targetCol = compileField(node.value as any, ctx.dialect)
+          const targetCol = compileField(node.value as FieldRefNode, ctx.dialect)
           switch (node.operator) {
             case "contains":     return `${col} LIKE '%' + ${targetCol} + '%'`
             case "not_contains": return `${col} NOT LIKE '%' + ${targetCol} + '%'`
