@@ -1,3 +1,17 @@
+# [1.5.0](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.4.1...v1.5.0) (2026-06-18)
+
+
+### Bug Fixes
+
+* cast custom op parameter to any to resolve TS compilation warning ([37aff20](https://github.com/Nam088/json-logic-to-sql-v2/commit/37aff20e011e3272ad974b1ac896142d1729a8bb))
+* resolve 15 bugs (Bugs 26-40) in validation, dialect compilers, and schema flattening ([c557c8f](https://github.com/Nam088/json-logic-to-sql-v2/commit/c557c8fa0fa68a2e65af0e8a422472b77ce3bc70))
+* resolve bugs in validator, normalizer and database dialect compilation ([53bf17e](https://github.com/Nam088/json-logic-to-sql-v2/commit/53bf17ed9e9cba266175dfa7321abaa82854739a))
+
+
+### Features
+
+* add runtime fieldMappings, raw SQL expressions, and OR expansions ([47aee2b](https://github.com/Nam088/json-logic-to-sql-v2/commit/47aee2b015d324c70d1f9beb578227ae11641607))
+
 ## [1.4.1](https://github.com/Nam088/json-logic-to-sql-v2/compare/v1.4.0...v1.4.1) (2026-06-17)
 
 
