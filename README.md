@@ -288,7 +288,45 @@ const publicSchema = toPublicSchema(schema)
 // Strips 'columnName', 'internal', and 'validate' keys from all fields.
 ```
 
-### 4. Custom Operators
+### 4. Runtime Field Mappings, OR-Expansion & SQL Expressions
+
+You can pass a dynamic `fieldMappings` object inside the `toSQL()` options. This allows you to decouple your static JSON-serializable schema (which might be stored in a database) from your runtime physical database column mappings or raw SQL expressions (which contain server-side functions).
+
+It supports three mapping formats:
+1. **Simple columnName mapping (String)**: Quotes the identifier appropriately.
+   ```typescript
+   const result = converter.toSQL(logic, {
+     fieldMappings: {
+       verifyStatus: "status_col",
+     }
+   })
+   // SQL: WHERE "status_col" = $1
+   ```
+
+2. **Raw SQL expression mapping (String containing spaces, parentheses, or colons)**: Bypasses identifier quoting and compiles raw SQL functions (e.g. `UPPER()`, `COALESCE()`).
+   ```typescript
+   const result = converter.toSQL(logic, {
+     fieldMappings: {
+       verifyStatus: "COALESCE(status, 'none')",
+     }
+   })
+   // SQL: WHERE COALESCE(status, 'none') = $1
+   ```
+
+3. **OR-Expansion mapping (Object)**: Duplicates the condition across multiple columns and joins them with an `OR` gate.
+   ```typescript
+   const result = converter.toSQL(logic, {
+     fieldMappings: {
+       verifyStatus: {
+         column: "status",
+         orColumn: ["alt_status", "LOWER(third_status)"]
+       }
+     }
+   })
+   // SQL: WHERE ("status" = $1 OR "alt_status" = $2 OR LOWER(third_status) = $3)
+   ```
+
+### 5. Custom Operators
 
 You can extend the default compiler by adding custom operators during initialization:
 

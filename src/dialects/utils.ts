@@ -1,5 +1,6 @@
 import type { Dialect, CompileContext } from "./interface.js"
 import type { FieldType, AstNode, Primitive } from "../types.js"
+import { isFieldRefNode } from "../types.js"
 
 /**
  * Builds a base SQL column reference with optional table prefix and proper identifier quoting.
@@ -15,7 +16,13 @@ import type { FieldType, AstNode, Primitive } from "../types.js"
  * // Postgres, with table prefix:
  * buildBaseColumn({ columnName: "name", tableName: "users" }, postgresDialect) // → `"users"."name"`
  */
-export function buildBaseColumn(n: { columnName: string; tableName?: string }, dialect: Dialect): string {
+export function buildBaseColumn(
+  n: { columnName: string; tableName?: string | undefined; sqlExpression?: string | undefined },
+  dialect: Dialect
+): string {
+  if (n.sqlExpression) {
+    return n.sqlExpression
+  }
   return n.tableName
     ? `${dialect.quoteIdentifier(n.tableName)}.${dialect.quoteIdentifier(n.columnName)}`
     : dialect.quoteIdentifier(n.columnName)
@@ -69,18 +76,20 @@ export type FieldNodeBase = {
   tableName?: string
   jsonPath?: string[]
   fieldType?: FieldType
+  sqlExpression?: string
 }
 
 /**
  * Compiles a field reference to SQL, handling table prefixes, JSON path querying, and casting.
  */
 export function compileField(
-  n: { columnName: string; tableName?: string; jsonPath?: string[]; fieldType?: FieldType },
-  dialect: Dialect
+  n: { columnName: string; tableName?: string | undefined; jsonPath?: string[] | undefined; fieldType?: FieldType | undefined; sqlExpression?: string | undefined },
+  dialect: Dialect,
+  options?: { skipCast?: boolean }
 ): string {
   const baseCol = buildBaseColumn(n, dialect)
 
-  if (n.jsonPath && n.jsonPath.length > 0) {
+  if (n.jsonPath && n.jsonPath.length > 0 && !n.sqlExpression) {
     // Prefer explicit jsonPathDialect; fall back to name-prefix inference for backward compat.
     // Custom dialects should set jsonPathDialect to avoid relying on name-prefix conventions.
     const family: "postgres" | "mysql" | "sqlite" | "mssql" | null =
@@ -94,8 +103,8 @@ export function compileField(
     const colPathBase = (() => {
       if (family === "postgres") {
         let temp = baseCol
-        const pathParts = n.jsonPath!.map((part) => `'${part.replace(/'/g, "''")}'`)
-        const useArrowOnly = n.fieldType === undefined || n.fieldType === "array"
+        const pathParts = n.jsonPath!.map((part) => /^\d+$/.test(part) ? part : `'${part.replace(/'/g, "''")}'`)
+        const useArrowOnly = (n.fieldType === undefined || n.fieldType === "array") && !options?.skipCast
         const limit = useArrowOnly ? pathParts.length : pathParts.length - 1
         for (let i = 0; i < limit; i++) {
           temp += `->${pathParts[i]}`
@@ -106,16 +115,41 @@ export function compileField(
         return temp
       }
       if (family === "mysql") {
-        const pathStr = "$." + n.jsonPath!.map((part) => `"${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(".")
-        return `${baseCol}->>'${pathStr.replace(/'/g, "''")}'`
+        let pathStr = "$"
+        for (const part of n.jsonPath!) {
+          if (/^\d+$/.test(part)) {
+            pathStr += `[${part}]`
+          } else {
+            pathStr += `."${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+          }
+        }
+        const useArrow = (n.fieldType === "array" || n.fieldType === "boolean" || n.fieldType === undefined) && !options?.skipCast
+        const opStr = useArrow ? "->" : "->>"
+        return `${baseCol}${opStr}'${pathStr.replace(/'/g, "''")}'`
       }
       if (family === "sqlite") {
-        const pathStr = "$." + n.jsonPath!.map((part) => `"${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`).join(".")
-        return `${baseCol} ->> '${pathStr.replace(/'/g, "''")}'`
+        let pathStr = "$"
+        for (const part of n.jsonPath!) {
+          if (/^\d+$/.test(part)) {
+            pathStr += `[${part}]`
+          } else {
+            pathStr += `."${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
+          }
+        }
+        const useArrow = (n.fieldType === "array" || n.fieldType === undefined) && !options?.skipCast
+        const opStr = useArrow ? "->" : "->>"
+        return `${baseCol} ${opStr} '${pathStr.replace(/'/g, "''")}'`
       }
       if (family === "mssql") {
-        const pathStr = "$." + n.jsonPath!.map((part) => `"${part.replace(/"/g, '""')}"`).join(".")
-        const useQuery = n.fieldType === "array" || n.fieldType === undefined
+        let pathStr = "$"
+        for (const part of n.jsonPath!) {
+          if (/^\d+$/.test(part)) {
+            pathStr += `[${part}]`
+          } else {
+            pathStr += `."${part.replace(/"/g, '""')}"`
+          }
+        }
+        const useQuery = (n.fieldType === "array" || n.fieldType === undefined) && !options?.skipCast
         const funcName = useQuery ? "JSON_QUERY" : "JSON_VALUE"
         return `${funcName}(${baseCol}, '${pathStr.replace(/'/g, "''")}')`
       }
@@ -124,7 +158,7 @@ export function compileField(
 
     let colPath = colPathBase
 
-    if (n.fieldType) {
+    if (n.fieldType && !options?.skipCast) {
       let castType = ""
       switch (family) {
         case "postgres":
@@ -137,8 +171,8 @@ export function compileField(
           break
         case "mysql":
           switch (n.fieldType) {
-            case "number":  castType = "DECIMAL";  break
-            case "boolean": castType = "SIGNED";   break
+            case "number":  castType = "DECIMAL(18, 6)";  break
+            case "boolean": castType = "";   break
             case "date":    castType = "DATETIME"; break
             case "uuid":    castType = "CHAR";     break
           }
@@ -151,7 +185,7 @@ export function compileField(
           break
         case "mssql":
           switch (n.fieldType) {
-            case "number":  castType = "DECIMAL";          break
+            case "number":  castType = "DECIMAL(18, 6)";          break
             case "boolean": castType = "BIT";              break
             case "date":    castType = "DATETIME2";        break
             case "uuid":    castType = "UNIQUEIDENTIFIER"; break
@@ -192,8 +226,8 @@ export function compileCommonNode(
           ? "!="
           : node.operator
       const val = node.value
-      if (typeof val === "object" && val !== null && "type" in val && val.type === "field") {
-        const targetCol = compileField(val as any, ctx.dialect)
+      if (isFieldRefNode(val)) {
+        const targetCol = compileField(val, ctx.dialect)
         return `${col} ${op} ${targetCol}`
       } else {
         const p = ctx.addParam(val as Primitive, node.field, node.fieldType)
@@ -204,8 +238,8 @@ export function compileCommonNode(
     case "in": {
       const placeholders = node.values
         .map((v, i) => {
-          if (typeof v === "object" && v !== null && "type" in v && (v as any).type === "field") {
-            return compileField(v as any, ctx.dialect)
+          if (isFieldRefNode(v)) {
+            return compileField(v, ctx.dialect)
           } else {
             return ctx.addParam(v as Primitive, `${node.field}_${i}`, node.fieldType)
           }
@@ -216,8 +250,8 @@ export function compileCommonNode(
 
     case "between": {
       const compileBound = (val: typeof node.min, suffix: string) => {
-        if (typeof val === "object" && val !== null && "type" in val && (val as any).type === "field") {
-          return compileField(val as any, ctx.dialect)
+        if (isFieldRefNode(val)) {
+          return compileField(val, ctx.dialect)
         } else {
           return ctx.addParam(val as Primitive, `${node.field}_${suffix}`, node.fieldType)
         }

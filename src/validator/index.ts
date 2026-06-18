@@ -27,15 +27,23 @@ export function validate(
 
   traverseAndValidate(node, schema, registry, "", errors, options)
 
-  if (sort && sort.length > 0) {
-    if (!options.sortEnabled) {
+  if (sort) {
+    if (!Array.isArray(sort)) {
       errors.push({
         path: "sort",
-        message: "Sort is not enabled. Pass sort: true in converter options.",
-        code: "SORT_NOT_ENABLED",
+        message: "Sort parameter must be an array of sort rules",
+        code: "INVALID_STRUCTURE",
       })
-    } else {
-      validateSort(sort, schema, errors)
+    } else if (sort.length > 0) {
+      if (!options.sortEnabled) {
+        errors.push({
+          path: "sort",
+          message: "Sort is not enabled. Pass sort: true in converter options.",
+          code: "SORT_NOT_ENABLED",
+        })
+      } else {
+        validateSort(sort, schema, errors)
+      }
     }
   }
 
@@ -68,6 +76,14 @@ function validatePagination(pagination: PaginationRule, errors: ValidationError[
 
 function validateSort(sort: SortRule[], schema: FieldSchema, errors: ValidationError[]): void {
   for (const rule of sort) {
+    if (!rule || typeof rule !== "object" || Array.isArray(rule) || typeof rule.field !== "string") {
+      errors.push({
+        path: "sort",
+        message: "Each sort rule must be an object with a string 'field' property",
+        code: "INVALID_STRUCTURE",
+      })
+      continue
+    }
     const fieldDef = schema[rule.field]
     if (!fieldDef) {
       errors.push({
@@ -125,12 +141,17 @@ function traverseAndValidate(
   }
 
   if (op === "!") {
-    const child = Array.isArray(args) ? (args as unknown[])[0] : args
+    const isArray = Array.isArray(args)
+    if (isArray && (args as unknown[]).length !== 1) {
+      errors.push({ path, message: `"!" requires exactly one condition`, code: "INVALID_STRUCTURE" })
+      return
+    }
+    const child = isArray ? (args as unknown[])[0] : args
     if (child === undefined) {
       errors.push({ path, message: `"!" requires exactly one condition`, code: "INVALID_STRUCTURE" })
       return
     }
-    traverseAndValidate(child, schema, registry, `${path}!`, errors, options)
+    traverseAndValidate(child, schema, registry, path ? `${path}.!` : "!", errors, options)
     return
   }
 
@@ -144,10 +165,12 @@ function traverseAndValidate(
       return
     }
     ;(args as unknown[]).forEach((child, i) => {
-      traverseAndValidate(child, schema, registry, `${path}${op}[${i}]`, errors, options)
+      traverseAndValidate(child, schema, registry, path ? `${path}.${op}[${i}]` : `${op}[${i}]`, errors, options)
     })
     return
   }
 
-  validateField(op, args, schema, registry, path, errors, options)
+  const opDef = registry.get(op)
+  const normalizedArgs = opDef && opDef.arity === "unary" && !Array.isArray(args) ? [args] : args
+  validateField(op, normalizedArgs, schema, registry, path, errors, options)
 }

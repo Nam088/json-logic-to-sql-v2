@@ -169,7 +169,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       if (!result.ok) return
 
       expect(result.value.sql).toBe(
-        "WHERE (CAST(`user_data`->>'$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lat\"' AS DECIMAL) > ? AND CAST(`user_data`->>'$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lng\"' AS DECIMAL) < ?)"
+        "WHERE (CAST(`user_data`->>'$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lat\"' AS DECIMAL(18, 6)) > ? AND CAST(`user_data`->>'$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lng\"' AS DECIMAL(18, 6)) < ?)"
       )
       expect(result.value.params).toEqual([10.5, 106.7])
     })
@@ -193,7 +193,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       if (!result.ok) return
 
       expect(result.value.sql).toBe(
-        "WHERE (CAST(JSON_VALUE([user_data], '$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lat\"') AS DECIMAL) > ? AND CAST(JSON_VALUE([user_data], '$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lng\"') AS DECIMAL) < ?)"
+        "WHERE (CAST(JSON_VALUE([user_data], '$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lat\"') AS DECIMAL(18, 6)) > ? AND CAST(JSON_VALUE([user_data], '$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lng\"') AS DECIMAL(18, 6)) < ?)"
       )
       expect(result.value.params).toEqual([10.5, 106.7])
     })
@@ -236,7 +236,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       if (!result.ok) return
 
       expect(result.value.sql).toBe(
-        `WHERE (("user_data"->'meta' ? $1) AND "user_data"->'meta'->>'ip' = $2)`
+        `WHERE (jsonb_exists("user_data"->'meta', $1) AND "user_data"->'meta'->>'ip' = $2)`
       )
       expect(result.value.params).toEqual(["ip", "127.0.0.1"])
     })
@@ -306,7 +306,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        `WHERE ("user_data"->'profile'->'tags' ?| ARRAY[$1::text, $2::text] AND "user_data"->'profile'->'contacts'->>'email' = $3)`
+        `WHERE (jsonb_exists_any("user_data"->'profile'->'tags', ARRAY[$1::text, $2::text]) AND "user_data"->'profile'->'contacts'->>'email' = $3)`
       )
       expect(result.value.params).toEqual(["VIP", "Beta", "test@drkumo.com"])
     })
@@ -355,7 +355,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        "WHERE CAST(`user_data`->>'$.\"profile\".\"vip\"' AS SIGNED) = ?"
+        "WHERE `user_data`->'$.\"profile\".\"vip\"' = ?"
       )
     })
 
@@ -630,7 +630,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        'WHERE "user_data"->\'profile\'->\'tags\' ?| ARRAY[$1::text, "user_data"->>\'id\']'
+        'WHERE jsonb_exists_any("user_data"->\'profile\'->\'tags\', ARRAY[$1::text, "user_data"->>\'id\'])'
       )
       expect(result.value.params).toEqual(["VIP"])
     })
@@ -643,9 +643,45 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        'WHERE JSON_OVERLAPS(`user_data`->>\'$."profile"."tags"\', JSON_ARRAY(?, `user_data`->>\'$."id"\'))'
+        'WHERE JSON_OVERLAPS(`user_data`->\'$."profile"."tags"\', JSON_ARRAY(?, `user_data`->>\'$."id"\'))'
       )
       expect(result.value.params).toEqual(["VIP"])
+    })
+  })
+
+  describe("Early Schema Validation (Invalid Regex Pattern)", () => {
+    it("throws an error when schema initialization encounters an invalid regex pattern at root", () => {
+      const invalidSchema: FieldSchema = {
+        bad_field: {
+          type: "string",
+          operators: ["=="],
+          constraints: {
+            pattern: "([a-z]+", // invalid regex (missing closing parenthesis)
+          },
+        },
+      }
+      expect(() => createConverter(invalidSchema)).toThrowError(
+        'Invalid regex pattern in schema for field "bad_field"'
+      )
+    })
+
+    it("throws an error when schema encounters an invalid regex pattern in nested properties", () => {
+      const invalidNestedSchema: FieldSchema = {
+        user: {
+          properties: {
+            bad_nested: {
+              type: "string",
+              operators: ["=="],
+              constraints: {
+                pattern: "[0-9++", // invalid regex
+              },
+            },
+          },
+        },
+      }
+      expect(() => createConverter(invalidNestedSchema)).toThrowError(
+        'Invalid regex pattern in schema for field "user.bad_nested"'
+      )
     })
   })
 })

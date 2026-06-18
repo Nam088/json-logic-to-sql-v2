@@ -216,7 +216,7 @@ export function validateField(
   }
 
   // Validate values for binary/variadic operators
-  if (op === "between" && args.length < 3) {
+  if (op === "between" && args.length !== 3) {
     errors.push({
       path,
       operator: op,
@@ -228,6 +228,56 @@ export function validateField(
   const values = op === "between" ? [args[1], args[2]] : args.slice(1)
   const isVariadic = opDef?.arity === "variadic"
   const checkValues = isVariadic && Array.isArray(args[1]) ? (args[1] as unknown[]) : values
+
+  if (op === "between") {
+    const minVal = args[1]
+    const maxVal = args[2]
+    if (!isVarNode(minVal) && !isVarNode(maxVal)) {
+      const isValidDateInput = (val: unknown) =>
+        val instanceof Date ||
+        (typeof val === "string" && !isNaN(Date.parse(val))) ||
+        (typeof val === "number" && !isNaN(new Date(val).getTime()))
+
+      const isMinDate = isValidDateInput(minVal)
+      const isMaxDate = isValidDateInput(maxVal)
+      if (fieldDef.type === "number" && typeof minVal === "number" && typeof maxVal === "number") {
+        if (minVal > maxVal) {
+          errors.push({
+            path,
+            field: fieldName,
+            operator: op,
+            message: `Minimum boundary ${minVal} cannot be greater than maximum boundary ${maxVal}`,
+            code: "VALUE_OUT_OF_RANGE",
+          })
+          return
+        }
+      } else if (fieldDef.type === "date" && isMinDate && isMaxDate) {
+        const t1 = new Date(minVal as any).getTime()
+        const t2 = new Date(maxVal as any).getTime()
+        if (t1 > t2) {
+          errors.push({
+            path,
+            field: fieldName,
+            operator: op,
+            message: `Minimum date boundary ${minVal} cannot be after maximum date boundary ${maxVal}`,
+            code: "VALUE_OUT_OF_RANGE",
+          })
+          return
+        }
+      } else if (fieldDef.type === "string" && typeof minVal === "string" && typeof maxVal === "string") {
+        if (minVal > maxVal) {
+          errors.push({
+            path,
+            field: fieldName,
+            operator: op,
+            message: `Minimum boundary "${minVal}" cannot be greater than maximum boundary "${maxVal}"`,
+            code: "VALUE_OUT_OF_RANGE",
+          })
+          return
+        }
+      }
+    }
+  }
 
   if (isVariadic && (checkValues as unknown[]).length === 0) {
     errors.push({
@@ -280,17 +330,23 @@ export function validateField(
           continue
         }
         const expectedElement = valType === "array" ? undefined : valType
-        if (expectedElement && targetFieldDef.type && expectedElement !== targetFieldDef.type) {
+        const targetElement = targetFieldDef.type === "array" && targetFieldDef.constraints?.arrayOf
+          ? targetFieldDef.constraints.arrayOf
+          : targetFieldDef.type
+        if (expectedElement && targetElement && expectedElement !== targetElement) {
           errors.push({
             path,
             field: fieldName,
             operator: op,
-            message: `Cannot compare field "${fieldName}" (type: ${expectedElement}) with field "${targetFieldName}" (type: ${targetFieldDef.type})`,
+            message: `Cannot compare field "${fieldName}" (type: ${expectedElement}) with field "${targetFieldName}" (type: ${targetElement})`,
             code: "OPERATOR_TYPE_MISMATCH",
           })
         }
       } else {
-        validateValue(val, valType, fieldDef.constraints ?? {}, fieldName, op, path, errors)
+        if (val === null && fieldDef.nullable !== false) {
+          continue
+        }
+        validateValue(val, valType, fieldDef.constraints ?? {}, fieldName, op, path, errors, fieldDef.nullable)
 
         if (fieldDef.validate) {
           try {
@@ -336,14 +392,30 @@ function validateValue(
   fieldName: string,
   op: string,
   path: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  nullable?: boolean
 ): void {
   if (type === "array") return
 
+  if (value === null) {
+    if (nullable === false) {
+      errors.push({
+        path,
+        field: fieldName,
+        operator: op,
+        message: `Value for "${fieldName}" cannot be null`,
+        code: "VALUE_TYPE_MISMATCH",
+      })
+    }
+    return
+  }
+
   const expectedJsType = type === "number" ? "number" : type === "boolean" ? "boolean" : "string"
   const isDateObject = type === "date" && value instanceof Date
+  const isDateInput = type === "date" && (typeof value === "string" || typeof value === "number" || isDateObject)
 
-  if (typeof value !== expectedJsType && !isDateObject) {
+  const hasTypeMismatch = type === "date" ? !isDateInput : typeof value !== expectedJsType
+  if (hasTypeMismatch) {
     errors.push({
       path,
       field: fieldName,
@@ -355,24 +427,32 @@ function validateValue(
   }
 
   const isStringSearch = ["contains", "not_contains", "startsWith", "endsWith", "like", "ilike"].includes(op)
-  if (
-    !isStringSearch &&
-    c.allowedValues &&
-    !c.allowedValues.some(
-      (av) =>
-        (av !== null && typeof av === "object" && "value" in av
-          ? (av as { value: Primitive }).value
-          : (av as Primitive)) === (value as Primitive)
-    )
-  ) {
-    errors.push({
-      path,
-      field: fieldName,
-      operator: op,
-      message: `Value "${value}" is not allowed for field "${fieldName}"`,
-      code: "VALUE_NOT_IN_ALLOWED_VALUES",
+  if (!isStringSearch && c.allowedValues) {
+    const isAllowed = c.allowedValues.some((av) => {
+      const avVal = av !== null && typeof av === "object" && "value" in av
+        ? (av as { value: Primitive }).value
+        : (av as Primitive)
+      if (type === "date") {
+        try {
+          const t1 = new Date(avVal as string | number).getTime()
+          const t2 = new Date(value as string | number | Date).getTime()
+          return !isNaN(t1) && !isNaN(t2) && t1 === t2
+        } catch {
+          return false
+        }
+      }
+      return avVal === (value as Primitive)
     })
-    return
+    if (!isAllowed) {
+      errors.push({
+        path,
+        field: fieldName,
+        operator: op,
+        message: `Value "${value}" is not allowed for field "${fieldName}"`,
+        code: "VALUE_NOT_IN_ALLOWED_VALUES",
+      })
+      return
+    }
   }
 
   if (type === "number" && typeof value === "number") {
@@ -396,7 +476,7 @@ function validateValue(
 
   if (type === "date") {
     if (typeof value === "string") {
-      const hasTime = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value)
+      const hasTime = /^[+-]?\d{4,6}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value)
       const hasTimezone = /(Z|[+-]\d{2}(:?\d{2})?)$/.test(value)
       if (hasTime && !hasTimezone) {
         errors.push({

@@ -407,17 +407,14 @@ describe("Bug 1 — Array Operator Dialect support validation", () => {
     tags: { type: "array", operators: ["has_any", "has_all"] }
   }
 
-  it("rejects array_op on SQLite", () => {
+  it("allows array_op on SQLite", () => {
     const errors = validate(
       { has_any: [{ var: "tags" }, ["news"]] },
       arraySchema,
       registry,
       { ...opts, dialect: sqliteDialect }
     )
-    expect(errors).toHaveLength(1)
-    expect(errors[0]?.code).toBe("OPERATOR_NOT_ALLOWED")
-    expect(errors[0]?.operator).toBe("has_any")
-    expect(errors[0]?.field).toBe("tags")
+    expect(errors).toHaveLength(0)
   })
 
   it("rejects array_op on MSSQL", () => {

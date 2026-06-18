@@ -1,4 +1,4 @@
-import type { FieldSchema, FieldDef } from "../types.js"
+import type { FieldSchema, FieldDef, InternalConfig } from "../types.js"
 
 /**
  * Recursively flattens a hierarchical/nested FieldSchema into a flat FieldSchema.
@@ -32,35 +32,75 @@ export function flattenSchema(schema: FieldSchema): FieldSchema {
     properties: Record<string, FieldDef>,
     parentLogicalPath: string,
     columnName: string,
-    jsonPathPrefix: string[]
+    jsonPathPrefix: string[],
+    parentInternal?: InternalConfig
   ) {
+    if (!properties || typeof properties !== "object") return
     for (const [key, def] of Object.entries(properties)) {
+      if (!def || typeof def !== "object") continue
       const logicalPath = `${parentLogicalPath}.${key}`
-      const currentJsonPath = [...jsonPathPrefix, key]
+      const customCol = def.columnName || def.column || def.internal?.column
+      const activeCol = customCol || columnName
+      const activeJsonPath = customCol
+        ? (def.jsonPath || [])
+        : [...jsonPathPrefix, ...(def.jsonPath || [key])]
+
+      const childInternal: InternalConfig = {
+        ...parentInternal,
+        ...def.internal,
+      }
+
+      if (def.constraints?.pattern !== undefined) {
+        try {
+          new RegExp(def.constraints.pattern)
+        } catch (err) {
+          throw new Error(`Invalid regex pattern in schema for field "${logicalPath}": ${err instanceof Error ? err.message : String(err)}`, { cause: err })
+        }
+      }
 
       if (def.properties) {
         if (def.operators) {
-          flat[logicalPath] = {
+          const flatDef: FieldDef = {
             ...def,
-            columnName,
-            jsonPath: def.jsonPath ? [...currentJsonPath, ...def.jsonPath] : currentJsonPath,
+            columnName: activeCol,
+            jsonPath: activeJsonPath,
           }
+          if (Object.keys(childInternal).length > 0) {
+            flatDef.internal = childInternal
+          }
+          flat[logicalPath] = flatDef
         }
-        traverse(def.properties, logicalPath, columnName, currentJsonPath)
+        traverse(def.properties, logicalPath, activeCol, activeJsonPath, childInternal)
       } else {
-        flat[logicalPath] = {
+        const flatDef: FieldDef = {
           ...def,
-          columnName,
-          jsonPath: def.jsonPath ? [...currentJsonPath, ...def.jsonPath] : currentJsonPath,
+          columnName: activeCol,
+          jsonPath: activeJsonPath,
         }
+        if (Object.keys(childInternal).length > 0) {
+          flatDef.internal = childInternal
+        }
+        flat[logicalPath] = flatDef
       }
     }
   }
 
   for (const [key, def] of Object.entries(schema)) {
+    if (!def || typeof def !== "object") continue
+    if (def.constraints?.pattern !== undefined) {
+      try {
+        new RegExp(def.constraints.pattern)
+      } catch (err) {
+        throw new Error(`Invalid regex pattern in schema for field "${key}": ${err instanceof Error ? err.message : String(err)}`, { cause: err })
+      }
+    }
     if (def.properties) {
-      const columnName = def.columnName || def.internal?.column || key
+      const columnName = def.columnName || def.column || def.internal?.column || key
       const jsonPathPrefix = def.jsonPath || []
+      const parentInternal: InternalConfig = {}
+      if (def.internal?.table) parentInternal.table = def.internal.table
+      if (def.internal?.alias) parentInternal.alias = def.internal.alias
+
       if (def.operators) {
         const flatDef: FieldDef = {
           ...def,
@@ -71,7 +111,7 @@ export function flattenSchema(schema: FieldSchema): FieldSchema {
         }
         flat[key] = flatDef
       }
-      traverse(def.properties, key, columnName, jsonPathPrefix)
+      traverse(def.properties, key, columnName, jsonPathPrefix, parentInternal)
     } else {
       flat[key] = def
     }

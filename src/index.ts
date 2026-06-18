@@ -8,7 +8,7 @@ import { mysqlDialect, mysqlNamedDialect } from "./dialects/mysql.js"
 import { sqliteDialect, sqliteNamedDialect } from "./dialects/sqlite.js"
 import { mssqlDialect, mssqlNamedDialect } from "./dialects/mssql.js"
 import type { Dialect } from "./dialects/interface.js"
-import type { FieldSchema, Query, Result, SortRule, ValidationError, PaginationRule } from "./types.js"
+import type { FieldSchema, Query, Result, SortRule, ValidationError, PaginationRule, FieldDef } from "./types.js"
 
 export type {
   FieldSchema,
@@ -76,6 +76,7 @@ export type ConverterOptions = {
 export type ToSQLOptions = {
   sort?: SortRule[]
   pagination?: PaginationRule
+  fieldMappings?: Record<string, string | Partial<FieldDef>>
 }
 
 export type ToSQLSingleObject = {
@@ -83,6 +84,7 @@ export type ToSQLSingleObject = {
   logic?: unknown
   sort?: SortRule[]
   pagination?: PaginationRule
+  fieldMappings?: Record<string, string | Partial<FieldDef>>
 }
 
 export type Converter = {
@@ -106,7 +108,18 @@ export type Converter = {
  */
 export function toPublicSchema(schema: FieldSchema): FieldSchema {
   function cleanDef(def: any): any {
-    const { internal: _, columnName: __, validate: ___, properties, ...pub } = def
+    const {
+      internal: _,
+      columnName: __,
+      column: ___,
+      orColumn: ____,
+      sqlExpression: _____,
+      orExpression: ______,
+      validate: _______,
+      jsonPath: ________,
+      properties,
+      ...pub
+    } = def
     if (properties) {
       const cleanProps: Record<string, any> = {}
       for (const [k, v] of Object.entries(properties)) {
@@ -175,14 +188,15 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
       let rule: unknown = jsonLogicOrObj
       let sort: SortRule[] | undefined = undefined
       let pag: PaginationRule | undefined = pagination
+      let fieldMappings: Record<string, string | Partial<FieldDef>> | undefined = undefined
 
-      // Single-object signature: { rule?, logic?, sort?, pagination? }
+      // Single-object signature: { rule?, logic?, sort?, pagination?, fieldMappings? }
       // Detection: all keys must be known single-object keys (prevents misidentifying a JSON Logic
       // node whose operator happens to be named "rule" or "logic" with extra unknown keys).
       // Known limitation: { rule: [{ var: "field" }, value] } is ambiguous when "rule" is a custom
       // operator — avoid naming custom operators "rule" or "logic" to prevent this.
       // Keep in sync with ToSQLSingleObject interface keys when adding new top-level keys.
-      const SINGLE_OBJ_KEYS = new Set(["rule", "logic", "sort", "pagination"])
+      const SINGLE_OBJ_KEYS = new Set(["rule", "logic", "sort", "pagination", "fieldMappings"])
       if (
         jsonLogicOrObj &&
         typeof jsonLogicOrObj === "object" &&
@@ -196,6 +210,7 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
         rule = obj.rule !== undefined ? obj.rule : obj.logic
         sort = obj.sort
         pag = obj.pagination
+        fieldMappings = obj.fieldMappings
       } else {
         // Traditional signatures
         if (Array.isArray(sortOrOptions)) {
@@ -203,18 +218,117 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
         } else if (sortOrOptions && typeof sortOrOptions === "object") {
           sort = sortOrOptions.sort
           pag = sortOrOptions.pagination
+          fieldMappings = sortOrOptions.fieldMappings
+        } else if (sortOrOptions !== undefined && sortOrOptions !== null) {
+          return {
+            ok: false,
+            errors: [
+              {
+                path: "sort",
+                message: "Sort parameter must be an array of sort rules",
+                code: "INVALID_STRUCTURE",
+              },
+            ],
+          }
         }
       }
 
-      const errors: ValidationError[] = validate(rule, flatSchema, registry, { maxDepth, sortEnabled, dialect }, sort, pag)
+      let activeSchema = flatSchema
+      if (fieldMappings && Object.keys(fieldMappings).length > 0) {
+        for (const [field, mapping] of Object.entries(fieldMappings)) {
+          if (!(field in flatSchema)) {
+            return {
+              ok: false,
+              errors: [{ path: `fieldMappings.${field}`, message: `Field "${field}" does not exist in the schema`, code: "FIELD_NOT_ALLOWED" }],
+            }
+          }
+          if (typeof mapping === "string" && !mapping.trim()) {
+            return {
+              ok: false,
+              errors: [{ path: `fieldMappings.${field}`, message: `Field mapping for "${field}" must not be blank or whitespace-only`, code: "INVALID_STRUCTURE" }],
+            }
+          }
+          if (mapping && typeof mapping === "object") {
+            const keysToCheck = ["column", "columnName", "orColumn", "sqlExpression", "orExpression"]
+            for (const key of keysToCheck) {
+              if (key in mapping) {
+                const val = (mapping as Record<string, unknown>)[key]
+                if (typeof val === "string" && !val.trim()) {
+                  return {
+                    ok: false,
+                    errors: [
+                      {
+                        path: `fieldMappings.${field}.${key}`,
+                        message: `Field mapping ${key} for "${field}" must not be blank or whitespace-only`,
+                        code: "INVALID_STRUCTURE",
+                      },
+                    ],
+                  }
+                }
+                if (Array.isArray(val)) {
+                  for (let i = 0; i < val.length; i++) {
+                    if (typeof val[i] === "string" && !val[i].trim()) {
+                      return {
+                        ok: false,
+                        errors: [
+                          {
+                            path: `fieldMappings.${field}.${key}[${i}]`,
+                            message: `Field mapping ${key} at index ${i} for "${field}" must not be blank or whitespace-only`,
+                            code: "INVALID_STRUCTURE",
+                          },
+                        ],
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+        activeSchema = { ...flatSchema }
+        for (const [field, mapping] of Object.entries(fieldMappings)) {
+          const originalDef = activeSchema[field] || {}
+          let enrichedDef: FieldDef = { ...originalDef }
+          if (typeof mapping === "string") {
+            const isRaw = /[\s(:]/.test(mapping)
+            if (isRaw) {
+              enrichedDef.sqlExpression = mapping
+            } else {
+              enrichedDef.columnName = mapping
+            }
+          } else if (mapping && typeof mapping === "object") {
+            const mergedInternal = (originalDef.internal && mapping.internal)
+              ? { ...originalDef.internal, ...mapping.internal }
+              : (mapping.internal || originalDef.internal)
+            enrichedDef = { ...enrichedDef, ...mapping }
+            if (mergedInternal) {
+              enrichedDef.internal = mergedInternal
+            }
+            if (mapping.column) {
+              const isRaw = /[\s(:]/.test(mapping.column)
+              if (isRaw) {
+                enrichedDef.sqlExpression = mapping.column
+              } else {
+                enrichedDef.columnName = mapping.column
+              }
+            }
+            if (mapping.orColumn) {
+              enrichedDef.orExpression = mapping.orColumn
+            }
+          }
+          activeSchema[field] = enrichedDef
+        }
+      }
+
+      const errors: ValidationError[] = validate(rule, activeSchema, registry, { maxDepth, sortEnabled, dialect }, sort, pag)
 
       if (errors.length > 0) {
         return { ok: false, errors }
       }
 
       try {
-        const ast = normalize(rule, flatSchema)
-        const query = compile(ast, dialect, sort, flatSchema, prefix, pag, registry)
+        const ast = normalize(rule, activeSchema)
+        const query = compile(ast, dialect, sort, activeSchema, prefix, pag, registry)
         return { ok: true, value: query }
       } catch (err) {
         return {

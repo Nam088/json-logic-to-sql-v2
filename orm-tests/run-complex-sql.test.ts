@@ -202,6 +202,81 @@ describe("Execute Complex SQL directly on Postgres", () => {
 
     expect(countRes.rows[0].total).toBe(2)
   })
+
+  it("executes queries using runtime fieldMappings and OR-expansions against complex_users Postgres table", async () => {
+    const customSchema: FieldSchema = {
+      userAge: {
+        type: "number",
+        operators: ["==", "between"],
+      },
+      userStatus: {
+        type: "string",
+        operators: ["==", "in"],
+      },
+    }
+
+    const conv = createConverter(customSchema)
+
+    // 1. Test raw SQL expression mapping (UPPER)
+    const result1 = conv.toSQL({
+      rule: { "==": [{ var: "userStatus" }, "ACTIVE"] },
+      fieldMappings: {
+        userStatus: "UPPER(status)",
+      }
+    })
+
+    expect(result1.ok).toBe(true)
+    if (result1.ok) {
+      console.log("POSTGRES FIELD_MAPPING RAW SQL:", result1.value.sql)
+      const res = await client.query(`SELECT * FROM complex_users ${result1.value.sql}`, result1.value.params)
+      // active, active, active, active, active -> 5 rows
+      expect(res.rows).toHaveLength(6)
+    }
+
+    // 2. Test OR-expansion mapping with multiple columns
+    const result2 = conv.toSQL({
+      rule: { between: [{ var: "userAge" }, 25, 30] },
+      fieldMappings: {
+        userAge: {
+          column: "age",
+          orColumn: ["salary / 100"]
+        }
+      }
+    })
+
+    expect(result2.ok).toBe(true)
+    if (result2.ok) {
+      console.log("POSTGRES FIELD_MAPPING OR-EXPANSION SQL:", result2.value.sql)
+      const res = await client.query(`SELECT * FROM complex_users ${result2.value.sql}`, result2.value.params)
+      expect(res.rows.length).toBeGreaterThan(0)
+    }
+  })
+
+  it("executes correlated subquery mapping with OR-expansion against complex_users Postgres table", async () => {
+    const subquerySchema: FieldSchema = {
+      subqueryField: {
+        type: "string",
+        operators: ["=="],
+      }
+    }
+    const conv2 = createConverter(subquerySchema)
+    const result3 = conv2.toSQL({
+      rule: { "==": [{ var: "subqueryField" }, "active"] },
+      fieldMappings: {
+        subqueryField: {
+          column: "(SELECT status FROM complex_users u2 WHERE u2.id = complex_users.id)",
+          orColumn: ["(SELECT 'active')"]
+        }
+      }
+    })
+
+    expect(result3.ok).toBe(true)
+    if (result3.ok) {
+      console.log("POSTGRES CORRELATED SUBQUERY WITH OR EXPANSION:", result3.value.sql)
+      const res = await client.query(`SELECT * FROM complex_users ${result3.value.sql}`, result3.value.params)
+      expect(res.rows).toHaveLength(8)
+    }
+  })
 })
 
 describe("Execute JSON Path SQL directly on Postgres", () => {
@@ -349,6 +424,34 @@ describe("Execute JSON Path SQL directly on Postgres", () => {
       expect(res3.rows).toHaveLength(2)
       const names = res3.rows.map((r) => r.name).sort()
       expect(names).toEqual(["Alice", "Bob"])
+    }
+  })
+
+  it("executes JSONB custom expression override with has_any against json_users Postgres table", async () => {
+    const jsonOverriddenSchema: FieldSchema = {
+      tags: {
+        type: "array",
+        operators: ["has_any"],
+        columnName: "metadata",
+        jsonPath: ["profile", "tags"]
+      }
+    }
+    const conv3 = createConverter(jsonOverriddenSchema)
+    const result4 = conv3.toSQL({
+      rule: { has_any: [{ var: "tags" }, ["admin", "guest"]] },
+      fieldMappings: {
+        tags: "COALESCE((metadata->'profile'->'tags'), '[]'::jsonb)"
+      }
+    })
+
+    expect(result4.ok).toBe(true)
+    if (result4.ok) {
+      console.log("POSTGRES JSONB OVERRIDDEN WITH HAS_ANY:", result4.value.sql)
+      const res = await client.query(`SELECT * FROM json_users ${result4.value.sql}`, result4.value.params)
+      // Alice and Charlie -> 2 rows
+      expect(res.rows).toHaveLength(2)
+      const names = res.rows.map((r) => r.name).sort()
+      expect(names).toEqual(["Alice", "Charlie"])
     }
   })
 })

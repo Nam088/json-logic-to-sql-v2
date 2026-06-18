@@ -62,6 +62,10 @@ export interface FieldDef {
   type?: FieldType
   operators?: string[]
   columnName?: string
+  column?: string
+  orColumn?: string | string[]
+  sqlExpression?: string
+  orExpression?: string | string[]
   jsonPath?: string[]
   description?: string
   nullable?: boolean
@@ -163,10 +167,13 @@ export type AndNode = { type: "and"; children: AstNode[] }
 export type OrNode = { type: "or"; children: AstNode[] }
 export type NotNode = { type: "not"; child: AstNode }
 
-type LeafNodeBase = {
-  tableName?: string
-  jsonPath?: string[]
-  fieldType?: FieldType
+export type LeafNodeBase = {
+  tableName?: string | undefined
+  jsonPath?: string[] | undefined
+  fieldType?: FieldType | undefined
+  sqlExpression?: string | undefined
+  orExpression?: string | string[] | undefined
+  arrayOf?: FieldType | undefined
 }
 
 export type FieldRefNode = {
@@ -174,6 +181,23 @@ export type FieldRefNode = {
   field: string
   columnName: string
   tableName?: string | undefined
+  sqlExpression?: string | undefined
+  fieldType?: FieldType | undefined
+  jsonPath?: string[] | undefined
+  arrayOf?: FieldType | undefined
+}
+
+export function isFieldRefNode(node: unknown): node is FieldRefNode {
+  return (
+    typeof node === "object" &&
+    node !== null &&
+    "type" in node &&
+    (node as Record<string, unknown>).type === "field" &&
+    "field" in node &&
+    typeof (node as Record<string, unknown>).field === "string" &&
+    "columnName" in node &&
+    typeof (node as Record<string, unknown>).columnName === "string"
+  )
 }
 
 export type ComparisonNode = LeafNodeBase & {
@@ -205,7 +229,7 @@ export type LikeNode = LeafNodeBase & {
   operator: "contains" | "not_contains" | "startsWith" | "endsWith" | "like" | "ilike"
   field: string
   columnName: string
-  value: string
+  value: string | FieldRefNode
 }
 
 export type NullCheckNode = LeafNodeBase & {
