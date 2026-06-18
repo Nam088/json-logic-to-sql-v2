@@ -169,7 +169,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       if (!result.ok) return
 
       expect(result.value.sql).toBe(
-        "WHERE (CAST(`user_data`->>'$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lat\"' AS DECIMAL) > ? AND CAST(`user_data`->>'$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lng\"' AS DECIMAL) < ?)"
+        "WHERE (CAST(`user_data`->>'$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lat\"' AS DECIMAL(18, 6)) > ? AND CAST(`user_data`->>'$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lng\"' AS DECIMAL(18, 6)) < ?)"
       )
       expect(result.value.params).toEqual([10.5, 106.7])
     })
@@ -193,7 +193,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       if (!result.ok) return
 
       expect(result.value.sql).toBe(
-        "WHERE (CAST(JSON_VALUE([user_data], '$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lat\"') AS DECIMAL) > ? AND CAST(JSON_VALUE([user_data], '$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lng\"') AS DECIMAL) < ?)"
+        "WHERE (CAST(JSON_VALUE([user_data], '$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lat\"') AS DECIMAL(18, 6)) > ? AND CAST(JSON_VALUE([user_data], '$.\"profile\".\"contacts\".\"location\".\"coordinates\".\"lng\"') AS DECIMAL(18, 6)) < ?)"
       )
       expect(result.value.params).toEqual([10.5, 106.7])
     })
@@ -355,7 +355,7 @@ describe("Extreme and Complex Logical Scenarios", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       expect(result.value.sql).toBe(
-        "WHERE CAST(`user_data`->>'$.\"profile\".\"vip\"' AS SIGNED) = ?"
+        "WHERE `user_data`->'$.\"profile\".\"vip\"' = ?"
       )
     })
 

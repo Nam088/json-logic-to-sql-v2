@@ -116,6 +116,7 @@ export function toPublicSchema(schema: FieldSchema): FieldSchema {
       sqlExpression: _____,
       orExpression: ______,
       validate: _______,
+      jsonPath: ________,
       properties,
       ...pub
     } = def
@@ -248,10 +249,38 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
             }
           }
           if (mapping && typeof mapping === "object") {
-            if ("column" in mapping && typeof mapping.column === "string" && !mapping.column.trim()) {
-              return {
-                ok: false,
-                errors: [{ path: `fieldMappings.${field}.column`, message: `Field mapping column for "${field}" must not be blank or whitespace-only`, code: "INVALID_STRUCTURE" }],
+            const keysToCheck = ["column", "columnName", "orColumn", "sqlExpression", "orExpression"]
+            for (const key of keysToCheck) {
+              if (key in mapping) {
+                const val = (mapping as any)[key]
+                if (typeof val === "string" && !val.trim()) {
+                  return {
+                    ok: false,
+                    errors: [
+                      {
+                        path: `fieldMappings.${field}.${key}`,
+                        message: `Field mapping ${key} for "${field}" must not be blank or whitespace-only`,
+                        code: "INVALID_STRUCTURE",
+                      },
+                    ],
+                  }
+                }
+                if (Array.isArray(val)) {
+                  for (let i = 0; i < val.length; i++) {
+                    if (typeof val[i] === "string" && !val[i].trim()) {
+                      return {
+                        ok: false,
+                        errors: [
+                          {
+                            path: `fieldMappings.${field}.${key}[${i}]`,
+                            message: `Field mapping ${key} at index ${i} for "${field}" must not be blank or whitespace-only`,
+                            code: "INVALID_STRUCTURE",
+                          },
+                        ],
+                      }
+                    }
+                  }
+                }
               }
             }
           }
@@ -268,7 +297,13 @@ export function createConverter(schema: FieldSchema, options: ConverterOptions =
               enrichedDef.columnName = mapping
             }
           } else if (mapping && typeof mapping === "object") {
+            const mergedInternal = (originalDef.internal && mapping.internal)
+              ? { ...originalDef.internal, ...mapping.internal }
+              : (mapping.internal || originalDef.internal)
             enrichedDef = { ...enrichedDef, ...mapping }
+            if (mergedInternal) {
+              enrichedDef.internal = mergedInternal
+            }
             if (mapping.column) {
               const isRaw = /[\s(:]/.test(mapping.column)
               if (isRaw) {

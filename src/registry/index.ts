@@ -32,7 +32,7 @@ const builtIn: Record<string, OperatorDef> = {
   ">=": { allowedTypes: ["number", "date"], arity: "binary" },
   "<": { allowedTypes: ["number", "date"], arity: "binary" },
   "<=": { allowedTypes: ["number", "date"], arity: "binary" },
-  between: { allowedTypes: ["number", "date"], arity: "binary" },
+  between: { allowedTypes: ["number", "date", "string"], arity: "binary" },
   in: { allowedTypes: ["string", "number", "boolean", "date", "uuid"], arity: "variadic" },
   not_in: { allowedTypes: ["string", "number", "boolean", "date", "uuid"], arity: "variadic" },
   contains: { allowedTypes: ["string"], arity: "binary" },

@@ -76,6 +76,14 @@ function validatePagination(pagination: PaginationRule, errors: ValidationError[
 
 function validateSort(sort: SortRule[], schema: FieldSchema, errors: ValidationError[]): void {
   for (const rule of sort) {
+    if (!rule || typeof rule !== "object" || Array.isArray(rule) || typeof rule.field !== "string") {
+      errors.push({
+        path: "sort",
+        message: "Each sort rule must be an object with a string 'field' property",
+        code: "INVALID_STRUCTURE",
+      })
+      continue
+    }
     const fieldDef = schema[rule.field]
     if (!fieldDef) {
       errors.push({

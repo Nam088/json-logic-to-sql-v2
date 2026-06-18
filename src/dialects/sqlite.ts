@@ -117,12 +117,12 @@ export const sqliteDialect: Dialect = {
       case "json_op": {
         if (node.operator === "json_has_key") {
           const p = ctx.addParam(node.values[0]!, node.field)
-          return `json_type(${col}, '$."' || replace(replace(${p}, '\\\\', '\\\\\\\\'), '"', '\\\\"') || '"') IS NOT NULL`
+          return `json_type(${col}, '$."' || replace(replace(${p}, '\\', '\\\\'), '"', '\\"') || '"') IS NOT NULL`
         } else {
           const paths = node.values
             .map((v, i) => {
               const p = ctx.addParam(v, `${node.field}_${i}`)
-              return `json_type(${col}, '$."' || replace(replace(${p}, '\\\\', '\\\\\\\\'), '"', '\\\\"') || '"') IS NOT NULL`
+              return `json_type(${col}, '$."' || replace(replace(${p}, '\\', '\\\\'), '"', '\\"') || '"') IS NOT NULL`
             })
             .join(" OR ")
           return `(${paths})`

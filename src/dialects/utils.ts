@@ -122,7 +122,7 @@ export function compileField(
             pathStr += `."${part.replace(/\\/g, "\\\\").replace(/"/g, '\\"')}"`
           }
         }
-        const useArrow = (n.fieldType === "array" || n.fieldType === undefined) && !options?.skipCast
+        const useArrow = (n.fieldType === "array" || n.fieldType === "boolean" || n.fieldType === undefined) && !options?.skipCast
         const opStr = useArrow ? "->" : "->>"
         return `${baseCol}${opStr}'${pathStr.replace(/'/g, "''")}'`
       }
@@ -170,8 +170,8 @@ export function compileField(
           break
         case "mysql":
           switch (n.fieldType) {
-            case "number":  castType = "DECIMAL";  break
-            case "boolean": castType = "SIGNED";   break
+            case "number":  castType = "DECIMAL(18, 6)";  break
+            case "boolean": castType = "";   break
             case "date":    castType = "DATETIME"; break
             case "uuid":    castType = "CHAR";     break
           }
@@ -184,7 +184,7 @@ export function compileField(
           break
         case "mssql":
           switch (n.fieldType) {
-            case "number":  castType = "DECIMAL";          break
+            case "number":  castType = "DECIMAL(18, 6)";          break
             case "boolean": castType = "BIT";              break
             case "date":    castType = "DATETIME2";        break
             case "uuid":    castType = "UNIQUEIDENTIFIER"; break

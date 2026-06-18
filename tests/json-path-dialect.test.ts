@@ -24,12 +24,12 @@ function makeCustomDialect(overrides: Partial<Dialect>): Dialect {
       if (common !== null) return common
       if (node.type === "like") {
         const op = node.operator
-        if (op === "contains")     { const p = ctx.addParam(`%${escapeLikePosix(node.value)}%`, node.field); return `${col} LIKE ${p}` }
-        if (op === "not_contains") { const p = ctx.addParam(`%${escapeLikePosix(node.value)}%`, node.field); return `${col} NOT LIKE ${p}` }
-        if (op === "startsWith")   { const p = ctx.addParam(`${escapeLikePosix(node.value)}%`, node.field); return `${col} LIKE ${p}` }
-        if (op === "endsWith")     { const p = ctx.addParam(`%${escapeLikePosix(node.value)}`, node.field); return `${col} LIKE ${p}` }
-        if (op === "like")         { const p = ctx.addParam(node.value, node.field); return `${col} LIKE ${p}` }
-        if (op === "ilike")        { const p = ctx.addParam(node.value, node.field); return `${col} ILIKE ${p}` }
+        if (op === "contains")     { const p = ctx.addParam(`%${escapeLikePosix(node.value as string)}%`, node.field); return `${col} LIKE ${p}` }
+        if (op === "not_contains") { const p = ctx.addParam(`%${escapeLikePosix(node.value as string)}%`, node.field); return `${col} NOT LIKE ${p}` }
+        if (op === "startsWith")   { const p = ctx.addParam(`${escapeLikePosix(node.value as string)}%`, node.field); return `${col} LIKE ${p}` }
+        if (op === "endsWith")     { const p = ctx.addParam(`%${escapeLikePosix(node.value as string)}`, node.field); return `${col} LIKE ${p}` }
+        if (op === "like")         { const p = ctx.addParam(node.value as string, node.field); return `${col} LIKE ${p}` }
+        if (op === "ilike")        { const p = ctx.addParam(node.value as string, node.field); return `${col} ILIKE ${p}` }
       }
       throw new Error(`Unsupported node type: ${(node as any).type}`)
     },
@@ -141,14 +141,14 @@ describe("jsonPathDialect — custom dialect JSON path routing", () => {
       const result = converter.toSQL({ ">": [{ var: "user.age" }, 25] })
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.value.sql).toBe('WHERE CAST(`user_data`->>\'$."profile"."age"\' AS DECIMAL) > $1')
+      expect(result.value.sql).toBe('WHERE CAST(`user_data`->>\'$."profile"."age"\' AS DECIMAL(18, 6)) > $1')
     })
 
-    it("generates CAST(... AS SIGNED) for boolean json field", () => {
+    it("generates MySQL -> JSON path syntax for boolean json field", () => {
       const result = converter.toSQL({ "==": [{ var: "user.vip" }, true] })
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.value.sql).toBe('WHERE CAST(`user_data`->>\'$."profile"."vip"\' AS SIGNED) = $1')
+      expect(result.value.sql).toBe('WHERE `user_data`->\'$."profile"."vip"\' = $1')
     })
 
     it("generates CAST(... AS CHAR) for uuid json field", () => {
@@ -182,7 +182,7 @@ describe("jsonPathDialect — custom dialect JSON path routing", () => {
       const result = converter.toSQL({ ">": [{ var: "user.age" }, 25] })
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.value.sql).toBe(`WHERE CAST(JSON_VALUE([user_data], '$."profile"."age"') AS DECIMAL) > $1`)
+      expect(result.value.sql).toBe(`WHERE CAST(JSON_VALUE([user_data], '$."profile"."age"') AS DECIMAL(18, 6)) > $1`)
     })
   })
 
@@ -200,7 +200,7 @@ describe("jsonPathDialect — custom dialect JSON path routing", () => {
       expect(result.ok).toBe(true)
       if (!result.ok) return
       // Should use MySQL syntax (->>'$.path'), NOT postgres (->'key'->>'key')
-      expect(result.value.sql).toBe('WHERE CAST(`user_data`->>\'$."profile"."age"\' AS DECIMAL) > $1')
+      expect(result.value.sql).toBe('WHERE CAST(`user_data`->>\'$."profile"."age"\' AS DECIMAL(18, 6)) > $1')
       expect(result.value.sql).not.toContain("->'profile'")
     })
   })

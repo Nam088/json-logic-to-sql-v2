@@ -48,13 +48,15 @@ export function compile(
   const orderFields: OrderField[] = []
 
   if (sort && Array.isArray(sort) && sort.length > 0 && schema) {
-    const orderCols = sort.map(({ field, direction }) => {
-      const def = schema[field]
-      const internalIsRaw = def?.internal?.column && /[\s(:]/.test(def.internal.column)
-      const simpleColumn = def?.column && !/[\s(:]/.test(def.column) ? def.column : undefined
-      const colName = (def?.internal?.column && !internalIsRaw ? def.internal.column : undefined) ?? def?.columnName ?? simpleColumn ?? field
-      const tablePrefix = def?.internal?.alias ?? def?.internal?.table
-      const dir = direction.toLowerCase() === "desc" ? "DESC" : "ASC"
+    const orderCols = sort
+      .filter((rule) => rule && typeof rule === "object" && typeof rule.field === "string")
+      .map(({ field, direction }) => {
+        const def = schema[field]
+        const internalIsRaw = def?.internal?.column && /[\s(:]/.test(def.internal.column)
+        const simpleColumn = def?.column && !/[\s(:]/.test(def.column) ? def.column : undefined
+        const colName = (def?.internal?.column && !internalIsRaw ? def.internal.column : undefined) ?? def?.columnName ?? simpleColumn ?? field
+        const tablePrefix = def?.internal?.alias ?? def?.internal?.table
+        const dir = (direction || "asc").toLowerCase() === "desc" ? "DESC" : "ASC"
       orderFields.push({ column: colName, direction: dir })
       const sqlExpr = def?.sqlExpression ?? (internalIsRaw ? def?.internal?.column : undefined) ?? (def?.column && /[\s(:]/.test(def.column) ? def.column : undefined)
 

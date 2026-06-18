@@ -315,13 +315,13 @@ describe("New Features Suite", () => {
       const result = converter.toSQL({ ">": [{ var: "user.profile.age" }, 25] })
       expect(result.ok).toBe(true)
       if (!result.ok) return
-      expect(result.value.sql).toBe(`WHERE CAST(\`user\`->>'$."profile"."age"' AS DECIMAL) > ?`)
+      expect(result.value.sql).toBe(`WHERE CAST(\`user\`->>'$."profile"."age"' AS DECIMAL(18, 6)) > ?`)
       expect(result.value.params).toEqual([25])
 
       const resultBool = converter.toSQL({ "==": [{ var: "user.profile.vip" }, true] })
       expect(resultBool.ok).toBe(true)
       if (!resultBool.ok) return
-      expect(resultBool.value.sql).toBe(`WHERE CAST(\`user\`->>'$."profile"."vip"' AS SIGNED) = ?`)
+      expect(resultBool.value.sql).toBe(`WHERE \`user\`->'$."profile"."vip"' = ?`)
     })
 
     it("compiles JSON paths and casts in SQLite", () => {
@@ -360,7 +360,7 @@ describe("New Features Suite", () => {
       const r3 = converter.toSQL({ json_has_any_keys: [{ var: "metadata" }, ["profile", "settings"]] })
       expect(r3.ok).toBe(true)
       if (r3.ok) {
-        expect(r3.value.sql).toBe(`WHERE jsonb_exists_any("metadata", ARRAY[$1, $2])`)
+        expect(r3.value.sql).toBe(`WHERE jsonb_exists_any("metadata", ARRAY[$1::text, $2::text])`)
         expect(r3.value.params).toEqual(["profile", "settings"])
       }
     })
@@ -401,14 +401,14 @@ describe("New Features Suite", () => {
       const r2 = converter.toSQL({ json_has_key: [{ var: "metadata" }, "profile"] })
       expect(r2.ok).toBe(true)
       if (r2.ok) {
-        expect(r2.value.sql).toBe(`WHERE json_type("metadata", '$."' || replace(replace(?, '\\\\', '\\\\\\\\'), '"', '\\\\"') || '"') IS NOT NULL`)
+        expect(r2.value.sql).toBe(`WHERE json_type("metadata", '$."' || replace(replace(?, '\\', '\\\\'), '"', '\\"') || '"') IS NOT NULL`)
       }
 
       const r3 = converter.toSQL({ json_has_any_keys: [{ var: "metadata" }, ["profile", "settings"]] })
       expect(r3.ok).toBe(true)
       if (r3.ok) {
         expect(r3.value.sql).toBe(
-          `WHERE (json_type("metadata", '$."' || replace(replace(?, '\\\\', '\\\\\\\\'), '"', '\\\\"') || '"') IS NOT NULL OR json_type("metadata", '$."' || replace(replace(?, '\\\\', '\\\\\\\\'), '"', '\\\\"') || '"') IS NOT NULL)`
+          `WHERE (json_type("metadata", '$."' || replace(replace(?, '\\', '\\\\'), '"', '\\"') || '"') IS NOT NULL OR json_type("metadata", '$."' || replace(replace(?, '\\', '\\\\'), '"', '\\"') || '"') IS NOT NULL)`
         )
       }
     })
@@ -456,7 +456,7 @@ describe("New Features Suite", () => {
       const result = converter.toSQL({ ">": [{ var: "user.profile.age" }, 25] })
       expect(result.ok).toBe(true)
       if (result.ok) {
-        expect(result.value.sql).toBe(`WHERE CAST(JSON_VALUE([metadata], '$."profile"."age"') AS DECIMAL) > ?`)
+        expect(result.value.sql).toBe(`WHERE CAST(JSON_VALUE([metadata], '$."profile"."age"') AS DECIMAL(18, 6)) > ?`)
       }
 
       const resultBool = converter.toSQL({ "==": [{ var: "user.profile.vip" }, true] })

@@ -404,7 +404,7 @@ describe("Runtime Field Mappings, OR-Expansion & SQL Expressions", () => {
     })
     expect(result.ok).toBe(true)
     if (!result.ok) return
-    expect(result.value.sql).toBe(`WHERE jsonb_exists_any("custom_meta", ARRAY[$1, $2])`)
+    expect(result.value.sql).toBe(`WHERE jsonb_exists_any("custom_meta", ARRAY[$1::text, $2::text])`)
   })
 
   // GROUP 3: Operator combinations & OR-expansion combinations

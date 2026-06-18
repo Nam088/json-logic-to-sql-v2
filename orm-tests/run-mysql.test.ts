@@ -242,4 +242,33 @@ describe("Execute MySQL SQL directly on MySQL DB", () => {
     expect(rows).toHaveLength(1)
     expect(rows[0].name).toBe("Alice")
   })
+
+  it("compiles and executes JSON path boolean query on MySQL", async () => {
+    const extendedSchema: FieldSchema = {
+      ...mysqlSchema,
+      "user.vip": {
+        columnName: "metadata",
+        jsonPath: ["profile", "vip"],
+        type: "boolean",
+        operators: ["=="],
+      }
+    }
+    const converter = createConverter(extendedSchema, { dialect: "mysql" })
+
+    // Select vip = true
+    const result = converter.toSQL({ "==": [{ var: "user.vip" }, true] })
+    expect(result.ok).toBe(true)
+    if (!result.ok) return
+
+    const { sql, params } = result.value
+    // Should compile using `->` and no CAST
+    expect(sql).toBe("WHERE `metadata`->'$.\"profile\".\"vip\"' = ?")
+    expect(params).toEqual([true])
+
+    const [rows] = (await connection.query(`SELECT * FROM test_users ${sql}`, params)) as any[]
+    // Alice, Charlie, David have profile.vip = true
+    expect(rows).toHaveLength(3)
+    const names = rows.map((r: any) => r.name).sort()
+    expect(names).toEqual(["Alice", "Charlie", "David"])
+  })
 })

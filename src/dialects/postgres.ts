@@ -87,14 +87,29 @@ export const postgresDialect: Dialect = {
 
             if (node.operator === "has_any") {
               if (targetIsArray) {
-                return `jsonb_exists_any(${col}, ARRAY(SELECT jsonb_array_elements_text(${targetCol})))`
+                const targetIsJson = !!((node.values[0] as any).jsonPath && (node.values[0] as any).jsonPath.length > 0)
+                if (targetIsJson) {
+                  return `jsonb_exists_any(${col}, ARRAY(SELECT jsonb_array_elements_text(${targetCol})))`
+                } else {
+                  return `jsonb_exists_any(${col}, ${targetCol})`
+                }
               } else {
                 return `jsonb_exists(${col}, ${targetCol})`
               }
             } else if (node.operator === "has_all") {
-              return `${col} @> ${targetCol}`
+              const targetIsJson = !!((node.values[0] as any).jsonPath && (node.values[0] as any).jsonPath.length > 0)
+              if (targetIsJson) {
+                return `${col} @> ${targetCol}`
+              } else {
+                return `${col} @> to_jsonb(${targetCol})`
+              }
             } else {
-              return `${col} <@ ${targetCol}`
+              const targetIsJson = !!((node.values[0] as any).jsonPath && (node.values[0] as any).jsonPath.length > 0)
+              if (targetIsJson) {
+                return `${col} <@ ${targetCol}`
+              } else {
+                return `${col} <@ to_jsonb(${targetCol})`
+              }
             }
           }
           if (node.operator === "has_any") {
@@ -158,12 +173,26 @@ export const postgresDialect: Dialect = {
         } else {
           if (isFieldRef) {
             const targetCol = compileField(node.values[0] as any, ctx.dialect)
+            const targetIsJson = !!((node.values[0] as any).jsonPath && (node.values[0] as any).jsonPath.length > 0)
+
             if (node.operator === "has_any") {
-              return `${col} && ${targetCol}`
+              if (targetIsJson) {
+                return `${col} && ARRAY(SELECT jsonb_array_elements_text(${targetCol}))`
+              } else {
+                return `${col} && ${targetCol}`
+              }
             } else if (node.operator === "has_all") {
-              return `${col} @> ${targetCol}`
+              if (targetIsJson) {
+                return `${col} @> ARRAY(SELECT jsonb_array_elements_text(${targetCol}))`
+              } else {
+                return `${col} @> ${targetCol}`
+              }
             } else {
-              return `${col} <@ ${targetCol}`
+              if (targetIsJson) {
+                return `${col} <@ ARRAY(SELECT jsonb_array_elements_text(${targetCol}))`
+              } else {
+                return `${col} <@ ${targetCol}`
+              }
             }
           }
           const placeholders = node.values
@@ -190,7 +219,7 @@ export const postgresDialect: Dialect = {
           const p = ctx.addParam(node.values[0]!, node.field)
           return `jsonb_exists(${col}, ${p})`
         } else {
-          const placeholders = node.values.map((v, i) => ctx.addParam(v, `${node.field}_${i}`)).join(", ")
+          const placeholders = node.values.map((v, i) => ctx.addParam(v, `${node.field}_${i}`) + "::text").join(", ")
           return `jsonb_exists_any(${col}, ARRAY[${placeholders}])`
         }
       }

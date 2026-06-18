@@ -233,8 +233,13 @@ export function validateField(
     const minVal = args[1]
     const maxVal = args[2]
     if (!isVarNode(minVal) && !isVarNode(maxVal)) {
-      const isMinDate = minVal instanceof Date || (typeof minVal === "string" && !isNaN(Date.parse(minVal)))
-      const isMaxDate = maxVal instanceof Date || (typeof maxVal === "string" && !isNaN(Date.parse(maxVal)))
+      const isValidDateInput = (val: unknown) =>
+        val instanceof Date ||
+        (typeof val === "string" && !isNaN(Date.parse(val))) ||
+        (typeof val === "number" && !isNaN(new Date(val).getTime()))
+
+      const isMinDate = isValidDateInput(minVal)
+      const isMaxDate = isValidDateInput(maxVal)
       if (fieldDef.type === "number" && typeof minVal === "number" && typeof maxVal === "number") {
         if (minVal > maxVal) {
           errors.push({
@@ -338,7 +343,10 @@ export function validateField(
           })
         }
       } else {
-        validateValue(val, valType, fieldDef.constraints ?? {}, fieldName, op, path, errors)
+        if (val === null && fieldDef.nullable !== false) {
+          continue
+        }
+        validateValue(val, valType, fieldDef.constraints ?? {}, fieldName, op, path, errors, fieldDef.nullable)
 
         if (fieldDef.validate) {
           try {
@@ -384,9 +392,23 @@ function validateValue(
   fieldName: string,
   op: string,
   path: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  nullable?: boolean
 ): void {
   if (type === "array") return
+
+  if (value === null) {
+    if (nullable === false) {
+      errors.push({
+        path,
+        field: fieldName,
+        operator: op,
+        message: `Value for "${fieldName}" cannot be null`,
+        code: "VALUE_TYPE_MISMATCH",
+      })
+    }
+    return
+  }
 
   const expectedJsType = type === "number" ? "number" : type === "boolean" ? "boolean" : "string"
   const isDateObject = type === "date" && value instanceof Date
@@ -454,7 +476,7 @@ function validateValue(
 
   if (type === "date") {
     if (typeof value === "string") {
-      const hasTime = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value)
+      const hasTime = /^[+-]?\d{4,6}-\d{2}-\d{2}[T ]\d{2}:\d{2}/.test(value)
       const hasTimezone = /(Z|[+-]\d{2}(:?\d{2})?)$/.test(value)
       if (hasTime && !hasTimezone) {
         errors.push({
