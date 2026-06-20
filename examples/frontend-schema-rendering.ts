@@ -1,6 +1,6 @@
 import { toPublicSchema, FieldSchema } from "../src/index.js"
 
-// 1. Cấu hình Schema ở Backend (chứa thông tin DB và UI cấu hình)
+// 1. Backend Schema Configuration (contains DB mapping and UI layout configs)
 const serverSchema: FieldSchema = {
   age: {
     type: "number",
@@ -8,8 +8,8 @@ const serverSchema: FieldSchema = {
     constraints: { min: 0, max: 120 },
     internal: { table: "users", column: "user_age" },
     config: {
-      label: "Tuổi",
-      placeholder: "Nhập số tuổi",
+      label: "Age",
+      placeholder: "Enter age",
       component: "number-input",
     },
   },
@@ -18,41 +18,41 @@ const serverSchema: FieldSchema = {
     operators: ["==", "in", "is_null", "is_not_null"],
     constraints: {
       allowedValues: [
-        { value: "active", label: "Đang hoạt động" },
-        { value: "inactive", label: "Tạm dừng" },
+        { value: "active", label: "Active" },
+        { value: "inactive", label: "Inactive" },
       ],
     },
     internal: { table: "users", column: "status_code" },
     config: {
-      label: "Trạng thái",
-      placeholder: "Chọn trạng thái...",
+      label: "Status",
+      placeholder: "Select status...",
       component: "select",
     },
   },
 }
 
-// Chuyển đổi thành Public Schema gửi về Frontend
+// Convert to Public Schema to send to Frontend
 const publicSchema = toPublicSchema(serverSchema)
 
-// 2. Định nghĩa nhãn hiển thị thân thiện cho các toán tử ở FE
+// 2. Define user-friendly display labels for Frontend operators
 const OPERATOR_LABELS: Record<string, string> = {
-  "==": "Bằng",
-  "!=": "Khác",
-  ">": "Lớn hơn",
-  "<": "Nhỏ hơn",
-  ">=": "Lớn hơn hoặc bằng",
-  "<=": "Nhỏ hơn hoặc bằng",
-  between: "Nằm trong khoảng (Min - Max)",
-  in: "Một trong số các giá trị (Multi-Select)",
-  not_in: "Không nằm trong số các giá trị",
-  contains: "Chứa từ khoá",
-  startsWith: "Bắt đầu với",
-  endsWith: "Kết thúc với",
-  is_null: "Không có giá trị (Rỗng)",
-  is_not_null: "Có giá trị (Khác rỗng)",
+  "==": "Equals",
+  "!=": "Not Equals",
+  ">": "Greater Than",
+  "<": "Less Than",
+  ">=": "Greater Than or Equal",
+  "<=": "Less Than or Equal",
+  between: "Between (Min - Max)",
+  in: "In list (Multi-Select)",
+  not_in: "Not in list",
+  contains: "Contains keyword",
+  startsWith: "Starts with",
+  endsWith: "Ends with",
+  is_null: "Is Empty / Null",
+  is_not_null: "Is Not Empty / Not Null",
 }
 
-// 3. Mô phỏng hàm render động của Frontend dựa trên Trường và Toán tử đang được chọn
+// 3. Simulate Frontend dynamic rendering based on the selected Field and Operator
 interface FEFieldDef {
   type: string
   operators: string[]
@@ -70,81 +70,81 @@ interface FEFieldDef {
 }
 
 /**
- * Hàm mô phỏng render ô nhập liệu tuỳ thuộc vào toán tử được chọn.
+ * Simulates rendering the value input depending on the chosen operator.
  */
 function renderValueInputForOperator(fieldKey: string, fieldDef: FEFieldDef, selectedOp: string) {
   const componentType = fieldDef.config?.component ?? "text-input"
   const placeholder = fieldDef.config?.placeholder ?? ""
 
-  console.log(`\n--- [FE Render] ${fieldDef.config?.label ?? fieldKey} với toán tử: "${OPERATOR_LABELS[selectedOp] ?? selectedOp}" ---`)
+  console.log(`\n--- [FE Render] ${fieldDef.config?.label ?? fieldKey} with operator: "${OPERATOR_LABELS[selectedOp] ?? selectedOp}" ---`)
 
-  // Bước A: Hiển thị bộ chọn toán tử (Dropdown)
-  console.log(`[Toán tử Dropdown] Cho phép người dùng chọn từ: ${JSON.stringify(fieldDef.operators.map(op => OPERATOR_LABELS[op] ?? op))}`)
-  console.log(`[Toán tử Đang chọn] => "${OPERATOR_LABELS[selectedOp] ?? selectedOp}"`)
+  // Step A: Render the operator dropdown selector
+  console.log(`[Operator Dropdown] Allow user to select from: ${JSON.stringify(fieldDef.operators.map(op => OPERATOR_LABELS[op] ?? op))}`)
+  console.log(`[Selected Operator] => "${OPERATOR_LABELS[selectedOp] ?? selectedOp}"`)
 
-  // Bước B: Render ô nhập giá trị động tương ứng với toán tử đang chọn
+  // Step B: Render dynamic value input according to the selected operator
   switch (selectedOp) {
     case "is_null":
     case "is_not_null":
-      // Đối với toán tử kiểm tra rỗng, không cần render ô nhập giá trị!
-      console.log(`[Giá trị Input] => (Không cần ô nhập liệu - toán tử kiểm tra Null/NotNull)`)
+      // For empty/null check operators, no value input is needed!
+      console.log(`[Value Input] => (No input field required - Null/NotNull check)`)
       break
 
     case "between":
-      // Toán tử between yêu cầu 2 ô nhập liệu (Min và Max)
+      // Between operator requires 2 inputs (Min and Max)
       if (componentType === "number-input") {
-        console.log(`[Giá trị Input] => Render 2 ô số: <NumberInput label="Từ" /> và <NumberInput label="Đến" />`)
+        console.log(`[Value Input] => Render 2 number inputs: <NumberInput label="From" /> and <NumberInput label="To" />`)
       } else {
-        console.log(`[Giá trị Input] => Render 2 ô chữ: <TextInput label="Từ" /> và <TextInput label="Đến" />`)
+        console.log(`[Value Input] => Render 2 text inputs: <TextInput label="From" /> and <TextInput label="To" />`)
       }
       break
 
     case "in":
     case "not_in":
-      // Toán tử in/not_in yêu cầu chọn nhiều giá trị
+      // in/not_in operators require multi-select values
       if (fieldDef.constraints?.allowedValues) {
-        console.log(`[Giá trị Input] => Render Multi-select Dropdown: <Select multiple placeholder="${placeholder}">`)
+        console.log(`[Value Input] => Render Multi-select Dropdown: <Select multiple placeholder="${placeholder}">`)
         fieldDef.constraints.allowedValues.forEach((opt: any) => {
           console.log(`    * [Option] Value: "${opt.value}" | Label: "${opt.label}"`)
         })
         console.log(` </Select>`)
       } else {
-        console.log(`[Giá trị Input] => Render ô nhập thẻ: <TagInput placeholder="Nhập các giá trị cách nhau bằng dấu phẩy..." />`)
+        console.log(`[Value Input] => Render tag input: <TagInput placeholder="Enter comma-separated values..." />`)
       }
       break
 
     default:
-      // Mặc định (==, !=, >, <) render 1 ô nhập đơn lẻ
+      // Default (==, !=, >, <) renders a single input field
       if (componentType === "select" && fieldDef.constraints?.allowedValues) {
-        console.log(`[Giá trị Input] => Render Single-select Dropdown: <Select placeholder="${placeholder}">`)
+        console.log(`[Value Input] => Render Single-select Dropdown: <Select placeholder="${placeholder}">`)
         fieldDef.constraints.allowedValues.forEach((opt: any) => {
           console.log(`    * [Option] Value: "${opt.value}" | Label: "${opt.label}"`)
         })
         console.log(` </Select>`)
       } else if (componentType === "number-input") {
-        console.log(`[Giá trị Input] => Render ô nhập số đơn lẻ: <NumberInput placeholder="${placeholder}" />`)
+        console.log(`[Value Input] => Render single number input: <NumberInput placeholder="${placeholder}" />`)
       } else {
-        console.log(`[Giá trị Input] => Render ô nhập chữ đơn lẻ: <TextInput placeholder="${placeholder}" />`)
+        console.log(`[Value Input] => Render single text input: <TextInput placeholder="${placeholder}" />`)
       }
       break
   }
 }
 
-// 4. Chạy mô phỏng tương tác trên Frontend
-console.log("=== BẮT ĐẦU MÔ PHỎNG FRONTEND TƯƠNG TÁC ĐỘNG ===")
+// 4. Run Frontend dynamic interaction simulation
+console.log("=== STARTING DYNAMIC FRONTEND INTERACTION SIMULATION ===")
 
-// Trường hợp A: Người dùng chọn trường "age" (Tuổi)
+// Scenario A: User selects field "age"
 const ageField = publicSchema.age as FEFieldDef
-// Người dùng chọn toán tử ">"
+// User selects operator ">"
 renderValueInputForOperator("age", ageField, ">")
-// Người dùng đổi sang chọn toán tử "between"
+// User switches to operator "between"
 renderValueInputForOperator("age", ageField, "between")
-// Người dùng đổi sang chọn toán tử "in"
+// User switches to operator "in"
 renderValueInputForOperator("age", ageField, "in")
 
-// Trường hợp B: Người dùng chọn trường "status" (Trạng thái)
+// Scenario B: User selects field "status"
 const statusField = publicSchema.status as FEFieldDef
-// Người dùng chọn toán tử "=="
+// User selects operator "=="
 renderValueInputForOperator("status", statusField, "==")
-// Người dùng đổi sang chọn toán tử "is_null"
+// User switches to operator "is_null"
 renderValueInputForOperator("status", statusField, "is_null")
